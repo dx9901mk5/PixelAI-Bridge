@@ -10,7 +10,7 @@
 - **Application ID**：`com.dx9901mk5.pixelaibridge`
 - **本地工作區**：`D:\Google雲端硬碟\Antigravity\Pixel專屬功能仿生`
 - **GitHub 儲存庫**：https://github.com/dx9901mk5/PixelAI-Bridge (`main` 分支)
-- **目前版本**：`0.2.1` (`versionCode = 3`)
+- **目前版本**：`0.2.2` (`versionCode = 4`)
 
 ---
 
@@ -49,6 +49,10 @@
   - `ScreenshotRepository`：自動掃描 `MediaStore` 截圖、執行離線 OCR、選配呼叫 Gemini Vision 生成分類與摘要，並提供跨截圖「AI 問答」。
   - `ScreenshotsScreen`：整合至主程式第 2 分頁「截圖記憶」，支援媒體權限引導、即時搜尋、批次掃描進度、詳細檢視與一鍵複製 OCR 文字。
 - **APK 驗證**：`.\gradlew.bat assembleDebug --no-daemon` 建置成功（`BUILD SUCCESSFUL`），產出 `%TEMP%\pixelai-bridge-build\app\outputs\apk\debug\app-debug.apk`（63,404,427 bytes，含 ML Kit 離線中文/英文 OCR 模型）。
+
+### 2026-11-22 — v0.2.2 全模組免 API Key 橋接模式
+- 新增 `GeminiAppHandoff`（`:core:ai`）：支援透過 Android `ACTION_SEND` 直接將文字、圖片、錄音檔導向手機本機已登入的 Gemini App（`com.google.android.apps.bard`），以及一鍵喚起 Google 聽歌／哼唱識曲。
+- 五大模組全面解除 API Key 限制：截圖問答、聽歌識曲／猜歌、Magic Cue 語境建議、Pixel Studio 修圖分析與 Call Notes 即時錄音／音訊匯入皆可在無 API Key 狀態下直接運作。
 
 ### 2026-11-22 — v0.2.1 Gemini 模型端點更新
 - 依最新官方 Gemini API 規格，將可用模型清單更新為 `gemini-3.8-flash`（預設）、`gemini-4-argon`、`gemini-3.5-flash-lite`，並於 `ApiKeyStore` 加入舊版 `2.5` 模型自動遷移邏輯。

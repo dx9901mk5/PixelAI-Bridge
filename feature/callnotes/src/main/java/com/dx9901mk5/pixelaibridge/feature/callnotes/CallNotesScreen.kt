@@ -54,6 +54,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import com.dx9901mk5.pixelaibridge.core.ai.GeminiAppHandoff
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiClient
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiResult
 import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
@@ -144,6 +146,13 @@ fun CallNotesScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
+        if (!hasApiKey) {
+            val prompt = "請聆聽這段通話或會議錄音，整理成繁體中文「重點摘要」與「待辦事項 (Action Items)」。"
+            if (!GeminiAppHandoff.sendAudioWithPrompt(context, uri, prompt)) {
+                onShowMessage("找不到可接收音訊的 Gemini App")
+            }
+            return@rememberLauncherForActivityResult
+        }
         scope.launch {
             val mime = context.contentResolver.getType(uri) ?: "audio/mp4"
             val bytes = withContext(Dispatchers.IO) {
@@ -183,14 +192,15 @@ fun CallNotesScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
-                        enabled = hasApiKey && !isSummarizing,
+                        enabled = !isSummarizing,
                         onClick = {
                             if (!hasMicPermission) {
                                 micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 return@Button
                             }
                             if (!isRecording) {
-                                val outFile = File(context.cacheDir, "callnote_${System.currentTimeMillis()}.m4a")
+                                val recDir = File(context.cacheDir, "recordings").apply { mkdirs() }
+                                val outFile = File(recDir, "callnote_${System.currentTimeMillis()}.m4a")
                                 val mr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                     MediaRecorder(context)
                                 } else {
@@ -223,9 +233,21 @@ fun CallNotesScreen(
                                 isRecording = false
                                 val file = recordedFile
                                 if (file != null && file.exists()) {
-                                    scope.launch {
-                                        val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-                                        summarizeAudioBytes("現場錄音筆記", bytes, "audio/mp4")
+                                    if (!hasApiKey) {
+                                        val audioUri = FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            file
+                                        )
+                                        val prompt = "請聆聽這段錄音，整理成繁體中文「重點摘要」與「待辦事項 (Action Items)」。"
+                                        if (!GeminiAppHandoff.sendAudioWithPrompt(context, audioUri, prompt)) {
+                                            onShowMessage("找不到可接收音訊的 Gemini App")
+                                        }
+                                    } else {
+                                        scope.launch {
+                                            val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+                                            summarizeAudioBytes("現場錄音筆記", bytes, "audio/mp4")
+                                        }
                                     }
                                 }
                             }
@@ -238,11 +260,17 @@ fun CallNotesScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isRecording) "停止並摘要" else "即時錄音")
+                        Text(
+                            if (isRecording) {
+                                if (hasApiKey) "停止並摘要" else "停止並送 Gemini"
+                            } else {
+                                "即時錄音"
+                            }
+                        )
                     }
 
                     OutlinedButton(
-                        enabled = hasApiKey && !isSummarizing && !isRecording,
+                        enabled = !isSummarizing && !isRecording,
                         onClick = { audioPicker.launch(arrayOf("audio/*")) }
                     ) {
                         Icon(Icons.Rounded.AudioFile, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -278,36 +306,54 @@ fun CallNotesScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                Button(
-                    enabled = hasApiKey && !isSummarizing && transcriptInput.isNotBlank(),
-                    onClick = {
-                        scope.launch {
-                            isSummarizing = true
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = hasApiKey && !isSummarizing && transcriptInput.isNotBlank(),
+                        onClick = {
+                            scope.launch {
+                                isSummarizing = true
+                                val prompt = """
+                                    請將以下通話或會議文字整理為繁體中文「重點摘要」與「待辦事項」：
+                                    $transcriptInput
+                                """.trimIndent()
+                                when (val res = geminiClient.generateText(prompt, maxOutputTokens = 600)) {
+                                    is GeminiResult.Success -> {
+                                        latestSummary = res.data
+                                        store.insert(
+                                            CallNoteRecord(
+                                                title = "文字筆記摘要",
+                                                summary = res.data,
+                                                createdAtMs = System.currentTimeMillis()
+                                            )
+                                        )
+                                        notes = store.getRecent()
+                                    }
+                                    is GeminiResult.Error -> onShowMessage("摘要失敗：${res.message}")
+                                }
+                                isSummarizing = false
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("整理重點")
+                    }
+
+                    OutlinedButton(
+                        enabled = transcriptInput.isNotBlank(),
+                        onClick = {
                             val prompt = """
-                                請將以下通話或會議文字整理為繁體中文「重點摘要」與「待辦事項」：
+                                請幫我把以下通話或會議內容整理成「重點摘要」與「待辦事項 (Action Items)」：
+
                                 $transcriptInput
                             """.trimIndent()
-                            when (val res = geminiClient.generateText(prompt, maxOutputTokens = 600)) {
-                                is GeminiResult.Success -> {
-                                    latestSummary = res.data
-                                    store.insert(
-                                        CallNoteRecord(
-                                            title = "文字筆記摘要",
-                                            summary = res.data,
-                                            createdAtMs = System.currentTimeMillis()
-                                        )
-                                    )
-                                    notes = store.getRecent()
-                                }
-                                is GeminiResult.Error -> onShowMessage("摘要失敗：${res.message}")
+                            if (!GeminiAppHandoff.sendText(context, prompt)) {
+                                onShowMessage("找不到可接收分享的 Gemini App")
                             }
-                            isSummarizing = false
                         }
+                    ) {
+                        Text("送給手機 Gemini")
                     }
-                ) {
-                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("整理重點")
                 }
             }
         }

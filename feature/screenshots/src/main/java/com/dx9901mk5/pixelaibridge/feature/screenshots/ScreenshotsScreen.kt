@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.dx9901mk5.pixelaibridge.core.ai.GeminiAppHandoff
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiResult
 import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
 import kotlinx.coroutines.Dispatchers
@@ -215,7 +216,7 @@ fun ScreenshotsScreen(
 
                 OutlinedButton(
                     onClick = { showAskDialog = true },
-                    enabled = hasApiKey && records.isNotEmpty()
+                    enabled = records.isNotEmpty()
                 ) {
                     Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))
@@ -282,6 +283,16 @@ fun ScreenshotsScreen(
                         onShowMessage("請先設定 Gemini API Key")
                     }
                 }
+            },
+            onSendToGeminiApp = {
+                val prompt = buildString {
+                    append("請幫我分析這張截圖的重點與待辦資訊：\n")
+                    if (rec.ocrText.isNotBlank()) {
+                        append("OCR 文字：\n${rec.ocrText.take(1200)}")
+                    }
+                }
+                val ok = GeminiAppHandoff.sendImageWithPrompt(context, Uri.parse(rec.contentUri), prompt)
+                if (!ok) onShowMessage("找不到可接收分享的 Gemini App")
             }
         )
     }
@@ -325,6 +336,16 @@ fun ScreenshotsScreen(
                 Button(
                     enabled = !isAsking && askInput.isNotBlank(),
                     onClick = {
+                        if (!hasApiKey) {
+                            val snippetContext = records.take(12).joinToString("\n") { rec ->
+                                "- [${rec.displayName} | ${rec.category}] ${rec.ocrText.replace('\n', ' ').take(180)}"
+                            }
+                            val prompt = "請根據我手機截圖的 OCR 紀錄回答問題：「$askInput」\n\n截圖紀錄：\n$snippetContext"
+                            if (!GeminiAppHandoff.sendText(context, prompt)) {
+                                onShowMessage("找不到可接收分享的 Gemini App")
+                            }
+                            return@Button
+                        }
                         scope.launch {
                             isAsking = true
                             askAnswer = when (val res = repository.askAcrossScreenshots(askInput)) {
@@ -335,7 +356,7 @@ fun ScreenshotsScreen(
                         }
                     }
                 ) {
-                    Text("送出提問")
+                    Text(if (hasApiKey) "送出提問" else "送給手機 Gemini")
                 }
             },
             dismissButton = {
@@ -453,7 +474,8 @@ private fun ScreenshotDetailDialog(
     hasApiKey: Boolean,
     onDismiss: () -> Unit,
     onCopyOcr: () -> Unit,
-    onReanalyze: () -> Unit
+    onReanalyze: () -> Unit,
+    onSendToGeminiApp: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -488,6 +510,9 @@ private fun ScreenshotDetailDialog(
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onSendToGeminiApp) {
+                    Text("送給手機 Gemini")
+                }
                 if (hasApiKey) {
                     OutlinedButton(onClick = onReanalyze) {
                         Text("AI 重析")
@@ -499,7 +524,7 @@ private fun ScreenshotDetailDialog(
                 ) {
                     Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("複製文字")
+                    Text("複製")
                 }
             }
         },

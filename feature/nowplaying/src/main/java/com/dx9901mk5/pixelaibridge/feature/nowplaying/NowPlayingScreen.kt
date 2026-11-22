@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.dx9901mk5.pixelaibridge.core.ai.GeminiAppHandoff
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiResult
 import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
 import kotlinx.coroutines.launch
@@ -123,8 +124,14 @@ fun NowPlayingScreen(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 Button(
-                    enabled = !isListening && hasApiKey,
+                    enabled = !isListening,
                     onClick = {
+                        if (!hasApiKey) {
+                            if (!GeminiAppHandoff.launchGoogleSoundSearch(context)) {
+                                onShowMessage("無法啟動 Google 聽歌識曲")
+                            }
+                            return@Button
+                        }
                         if (!hasMicPermission) {
                             micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             return@Button
@@ -151,7 +158,7 @@ fun NowPlayingScreen(
                     } else {
                         Icon(Icons.Rounded.MusicNote, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (hasApiKey) "開始聽歌識曲" else "請先於設定頁填入 Gemini API Key")
+                        Text(if (hasApiKey) "開始聽歌識曲" else "啟動 Google 聽歌／哼唱識曲")
                     }
                 }
             }
@@ -212,8 +219,15 @@ fun NowPlayingScreen(
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(
-                        enabled = !isListening && hasApiKey && hintInput.isNotBlank(),
+                        enabled = !isListening && hintInput.isNotBlank(),
                         onClick = {
+                            if (!hasApiKey) {
+                                val prompt = "請幫我根據以下歌詞或旋律線索找出歌名與歌手：\n$hintInput"
+                                if (!GeminiAppHandoff.sendText(context, prompt)) {
+                                    onShowMessage("找不到可接收分享的 Gemini App")
+                                }
+                                return@IconButton
+                            }
                             scope.launch {
                                 isListening = true
                                 when (val res = recognizer.identifyFromLyricsOrHint(hintInput)) {

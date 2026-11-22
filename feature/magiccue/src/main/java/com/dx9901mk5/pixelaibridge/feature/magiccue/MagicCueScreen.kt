@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dx9901mk5.pixelaibridge.core.ai.GeminiAppHandoff
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiClient
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiResult
 import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
@@ -180,18 +181,35 @@ fun MagicCueScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                Button(
-                    enabled = !isAnalyzing && manualInput.isNotBlank(),
-                    onClick = { analyzeText(manualInput) }
-                ) {
-                    if (isAnalyzing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("分析語境中…")
-                    } else {
-                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("生成智慧建議")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = !isAnalyzing && manualInput.isNotBlank(),
+                        onClick = { analyzeText(manualInput) }
+                    ) {
+                        if (isAnalyzing) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("分析中…")
+                        } else {
+                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("生成智慧建議")
+                        }
+                    }
+                    OutlinedButton(
+                        enabled = manualInput.isNotBlank(),
+                        onClick = {
+                            val prompt = """
+                                請協助分析以下訊息，提取關鍵資訊（時間/地點/驗證碼/訂單號）並提供 3 則自然的回覆草稿：
+
+                                $manualInput
+                            """.trimIndent()
+                            if (!GeminiAppHandoff.sendText(context, prompt)) {
+                                onShowMessage("找不到可接收分享的 Gemini App")
+                            }
+                        }
+                    ) {
+                        Text("送給手機 Gemini")
                     }
                 }
 

@@ -2,7 +2,7 @@
 
 > **最後更新**：2026-11-22  
 > **GitHub 儲存庫**：https://github.com/dx9901mk5/PixelAI-Bridge (`main` 分支)  
-> **目前版本**：`0.2.1` (`versionCode = 3`，更新支援 `gemini-3.8-flash` / `gemini-4-argon` / `gemini-3.5-flash-lite`)
+> **目前版本**：`0.2.2` (`versionCode = 4`，全模組免 API Key 橋接模式 + 最新 Gemini 模型)
 
 ---
 

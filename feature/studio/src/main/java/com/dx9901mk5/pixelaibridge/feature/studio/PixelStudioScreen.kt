@@ -56,6 +56,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dx9901mk5.pixelaibridge.core.ai.GeminiAppHandoff
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiClient
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiResult
 import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
@@ -268,6 +269,19 @@ fun PixelStudioScreen(
                         } else {
                             Text("AI 修圖分析")
                         }
+                    }
+
+                    OutlinedButton(
+                        enabled = selectedImageUri != null,
+                        onClick = {
+                            val uri = selectedImageUri ?: return@OutlinedButton
+                            val prompt = "請幫我分析這張照片的構圖、調色修圖建議與 2 句社群貼文靈感："
+                            if (!GeminiAppHandoff.sendImageWithPrompt(context, uri, prompt)) {
+                                onShowMessage("找不到可接收分享的 Gemini App")
+                            }
+                        }
+                    ) {
+                        Text("送給手機 Gemini")
                     }
                 }
 

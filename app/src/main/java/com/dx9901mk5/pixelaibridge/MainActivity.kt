@@ -321,16 +321,10 @@ private fun DashboardTab(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "已整合截圖記憶庫、Now Playing 識曲、Magic Cue、Pixel Studio 桌布／修圖與 Call Notes 摘要。點擊下方任一卡片即可直接進入。",
+                    text = "已整合截圖記憶庫、Now Playing 識曲、Magic Cue、Pixel Studio 桌布／修圖與 Call Notes 摘要。未設 API Key 亦可直接使用免 Key 橋接送給手機 Gemini App！",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                if (!hasApiKey) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(onClick = onGoToSettings) {
-                        Text("前往設定 Gemini API Key")
-                    }
-                }
             }
         }
 
@@ -343,7 +337,7 @@ private fun DashboardTab(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Gemini ($selectedModel) · Shizuku",
+                            text = if (hasApiKey) "Gemini API ($selectedModel) · Shizuku" else "免 API Key 橋接模式 · Shizuku",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -354,8 +348,8 @@ private fun DashboardTab(
                         )
                     }
                     StatusBadgePill(
-                        label = if (hasApiKey) "AI 已就緒" else "未設金鑰",
-                        isPositive = hasApiKey
+                        label = if (hasApiKey) "API 已就緒" else "免 Key 可用",
+                        isPositive = true
                     )
                 }
                 if (shizukuStatus == ShizukuStatus.PERMISSION_REQUIRED) {
