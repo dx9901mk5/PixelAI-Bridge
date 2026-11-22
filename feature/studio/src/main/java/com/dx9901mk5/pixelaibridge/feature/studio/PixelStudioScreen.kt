@@ -1,5 +1,6 @@
 package com.dx9901mk5.pixelaibridge.feature.studio
 
+import android.app.WallpaperManager
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -18,6 +19,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +39,7 @@ import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -67,6 +71,7 @@ import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.random.Random
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PixelStudioScreen(
     padding: PaddingValues,
@@ -93,6 +98,8 @@ fun PixelStudioScreen(
     var isGeneratingWallpaper by remember { mutableStateOf(false) }
 
     var selectedImageUri by remember(initialSharedImageUri) { mutableStateOf(initialSharedImageUri) }
+    var selectedStylePreset by remember { mutableStateOf("日系底片") }
+    val stylePresets = remember { listOf("日系底片", "賽博霓虹", "去除路人", "立體貼圖風", "極簡構圖") }
     var imageAnalysis by remember { mutableStateOf<String?>(null) }
     var isAnalyzingImage by remember { mutableStateOf(false) }
 
@@ -201,6 +208,21 @@ fun PixelStudioScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("儲存")
                     }
+
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        WallpaperManager.getInstance(context).setBitmap(wallpaperBitmap)
+                                    }.isSuccess
+                                }
+                                onShowMessage(if (ok) "已將莫奈桌布套用至主畫面" else "套用桌布失敗")
+                            }
+                        }
+                    ) {
+                        Text("設為桌布")
+                    }
                 }
             }
         }
@@ -220,11 +242,21 @@ fun PixelStudioScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "支援從相簿選圖或系統「分享」直接傳入圖片，取得修圖調色建議、文字翻譯與社群文案。",
+                    text = "支援從相簿選圖或系統「分享」傳入圖片，選擇風格模板即可執行修圖分析或一鍵送手機 Gemini 重繪。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    stylePresets.forEach { preset ->
+                        FilterChip(
+                            selected = selectedStylePreset == preset,
+                            onClick = { selectedStylePreset = preset },
+                            label = { Text(preset) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
                         onClick = {
@@ -249,9 +281,9 @@ fun PixelStudioScreen(
                                     return@launch
                                 }
                                 val prompt = """
-                                    請扮演 Google Pixel Magic Editor 攝影與設計助理，用繁體中文分析這張照片：
+                                    請扮演 Google Pixel Magic Editor 攝影與設計助理，針對「$selectedStylePreset」風格需求，用繁體中文分析這張照片：
                                     1. 【畫面重點與氛圍】
-                                    2. 【修圖／構圖建議】（光影、色調、裁切或去背建議）
+                                    2. 【針對「$selectedStylePreset」的修圖／構圖建議】
                                     3. 【社群貼文靈感】（2 句自然文案）
                                 """.trimIndent()
                                 imageAnalysis = when (val res = geminiClient.generateWithImage(prompt, jpeg, maxOutputTokens = 550)) {
@@ -275,7 +307,7 @@ fun PixelStudioScreen(
                         enabled = selectedImageUri != null,
                         onClick = {
                             val uri = selectedImageUri ?: return@OutlinedButton
-                            val prompt = "請幫我分析這張照片的構圖、調色修圖建議與 2 句社群貼文靈感："
+                            val prompt = "請幫我以「$selectedStylePreset」風格處理或提供這張照片的 Magic Editor 修圖與構圖建議："
                             if (!GeminiAppHandoff.sendImageWithPrompt(context, uri, prompt)) {
                                 onShowMessage("找不到可接收分享的 Gemini App")
                             }

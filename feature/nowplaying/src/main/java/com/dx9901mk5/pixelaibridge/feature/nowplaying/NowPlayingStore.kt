@@ -12,7 +12,8 @@ data class NowPlayingTrack(
     val title: String,
     val artist: String,
     val confidenceNote: String,
-    val recognizedAtMs: Long
+    val recognizedAtMs: Long,
+    val isFavorite: Boolean = false
 )
 
 class NowPlayingStore(context: Context) :
@@ -26,13 +27,18 @@ class NowPlayingStore(context: Context) :
                 title TEXT NOT NULL,
                 artist TEXT NOT NULL,
                 confidence_note TEXT NOT NULL,
-                recognized_at_ms INTEGER NOT NULL
+                recognized_at_ms INTEGER NOT NULL,
+                is_favorite INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent()
         )
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE $TABLE_TRACKS ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+        }
+    }
 
     suspend fun insert(track: NowPlayingTrack): NowPlayingTrack = withContext(Dispatchers.IO) {
         val values = ContentValues().apply {
@@ -40,15 +46,23 @@ class NowPlayingStore(context: Context) :
             put("artist", track.artist)
             put("confidence_note", track.confidenceNote)
             put("recognized_at_ms", track.recognizedAtMs)
+            put("is_favorite", if (track.isFavorite) 1 else 0)
         }
         val rowId = writableDatabase.insert(TABLE_TRACKS, null, values)
         track.copy(id = rowId)
     }
 
+    suspend fun setFavorite(id: Long, favorite: Boolean) = withContext(Dispatchers.IO) {
+        val values = ContentValues().apply {
+            put("is_favorite", if (favorite) 1 else 0)
+        }
+        writableDatabase.update(TABLE_TRACKS, values, "id = ?", arrayOf(id.toString()))
+    }
+
     suspend fun getRecent(limit: Int = 50): List<NowPlayingTrack> = withContext(Dispatchers.IO) {
         val list = ArrayList<NowPlayingTrack>()
         readableDatabase.rawQuery(
-            "SELECT id, title, artist, confidence_note, recognized_at_ms FROM $TABLE_TRACKS ORDER BY recognized_at_ms DESC LIMIT ?",
+            "SELECT id, title, artist, confidence_note, recognized_at_ms, is_favorite FROM $TABLE_TRACKS ORDER BY recognized_at_ms DESC LIMIT ?",
             arrayOf(limit.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
@@ -58,7 +72,8 @@ class NowPlayingStore(context: Context) :
                         title = cursor.getString(1),
                         artist = cursor.getString(2),
                         confidenceNote = cursor.getString(3),
-                        recognizedAtMs = cursor.getLong(4)
+                        recognizedAtMs = cursor.getLong(4),
+                        isFavorite = cursor.getInt(5) == 1
                     )
                 )
             }
@@ -66,15 +81,9 @@ class NowPlayingStore(context: Context) :
         list
     }
 
-    suspend fun count(): Int = withContext(Dispatchers.IO) {
-        readableDatabase.rawQuery("SELECT COUNT(*) FROM $TABLE_TRACKS", null).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getInt(0) else 0
-        }
-    }
-
     companion object {
         private const val DB_NAME = "pixelai_nowplaying.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
         private const val TABLE_TRACKS = "tracks"
     }
 }

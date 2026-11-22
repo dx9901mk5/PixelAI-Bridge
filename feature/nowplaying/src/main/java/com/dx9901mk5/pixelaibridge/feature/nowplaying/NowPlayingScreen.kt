@@ -1,9 +1,13 @@
 package com.dx9901mk5.pixelaibridge.feature.nowplaying
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -21,14 +25,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiAppHandoff
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiResult
@@ -82,10 +90,15 @@ fun NowPlayingScreen(
     var isListening by remember { mutableStateOf(false) }
     var latestTrack by remember { mutableStateOf<NowPlayingTrack?>(null) }
     var history by remember { mutableStateOf<List<NowPlayingTrack>>(emptyList()) }
+    var onlyFavorites by remember { mutableStateOf(false) }
     var hintInput by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         history = recognizer.getHistory()
+    }
+
+    val displayedHistory = remember(history, onlyFavorites) {
+        if (onlyFavorites) history.filter { it.isFavorite } else history
     }
 
     LazyColumn(
@@ -118,7 +131,7 @@ fun NowPlayingScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "取樣 6 秒環境音訊並透過 Gemini 音訊多模態辨識曲目，支援一鍵跳轉串流搜尋與歷史時間軸。",
+                    text = "可將「Now Playing 識曲」加入系統快速設定磁貼，或直接點擊下方按鈕辨識環境音樂並推播鎖屏通知。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -142,6 +155,7 @@ fun NowPlayingScreen(
                                 is GeminiResult.Success -> {
                                     latestTrack = res.data
                                     history = recognizer.getHistory()
+                                    postNowPlayingNotification(context, res.data)
                                     onShowMessage("辨識完成：${res.data.title}")
                                 }
                                 is GeminiResult.Error -> onShowMessage("辨識失敗：${res.message}")
@@ -191,7 +205,7 @@ fun NowPlayingScreen(
                             )
                         }
                     ) {
-                        Icon(Icons.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("在 YouTube Music 搜尋")
                     }
@@ -234,6 +248,7 @@ fun NowPlayingScreen(
                                     is GeminiResult.Success -> {
                                         latestTrack = res.data
                                         history = recognizer.getHistory()
+                                        postNowPlayingNotification(context, res.data)
                                     }
                                     is GeminiResult.Error -> onShowMessage("查詢失敗：${res.message}")
                                 }
@@ -249,14 +264,31 @@ fun NowPlayingScreen(
 
         if (history.isNotEmpty()) {
             item {
-                Text(
-                    text = "識曲歷史紀錄 (${history.size})",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "識曲歷史紀錄 (${displayedHistory.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = !onlyFavorites,
+                            onClick = { onlyFavorites = false },
+                            label = { Text("全部") }
+                        )
+                        FilterChip(
+                            selected = onlyFavorites,
+                            onClick = { onlyFavorites = true },
+                            label = { Text("最愛") }
+                        )
+                    }
+                }
             }
-            items(history, key = { it.id }) { item ->
+            items(displayedHistory, key = { it.id }) { item ->
                 ElevatedCard(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.elevatedCardColors(
@@ -283,21 +315,59 @@ fun NowPlayingScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(
-                            onClick = {
-                                val q = Uri.encode("${item.title} ${item.artist}")
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com/search?q=$q"))
+                        Row {
+                            IconButton(
+                                onClick = {
+                                    scope.launch {
+                                        recognizer.toggleFavorite(item)
+                                        history = recognizer.getHistory()
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (item.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    contentDescription = "收藏",
+                                    tint = if (item.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        ) {
-                            Icon(Icons.Rounded.OpenInNew, contentDescription = "開啟")
+                            IconButton(
+                                onClick = {
+                                    val q = Uri.encode("${item.title} ${item.artist}")
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com/search?q=$q"))
+                                    )
+                                }
+                            ) {
+                                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "開啟")
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+private fun postNowPlayingNotification(context: Context, track: NowPlayingTrack) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        return
+    }
+    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        nm.createNotificationChannel(
+            NotificationChannel("now_playing_channel", "Now Playing 識曲", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+    val notif = NotificationCompat.Builder(context, "now_playing_channel")
+        .setSmallIcon(android.R.drawable.ic_media_play)
+        .setContentTitle("${track.title} · ${track.artist}")
+        .setContentText("PixelAI Now Playing 辨識結果")
+        .setOngoing(false)
+        .build()
+    nm.notify(3010, notif)
 }
 
 private fun formatTime(ms: Long): String {

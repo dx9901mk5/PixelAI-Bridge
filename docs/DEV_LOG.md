@@ -10,7 +10,7 @@
 - **Application ID**：`com.dx9901mk5.pixelaibridge`
 - **本地工作區**：`D:\Google雲端硬碟\Antigravity\Pixel專屬功能仿生`
 - **GitHub 儲存庫**：https://github.com/dx9901mk5/PixelAI-Bridge (`main` 分支)
-- **目前版本**：`0.2.3` (`versionCode = 5`)
+- **目前版本**：`0.3.0` (`versionCode = 6`)
 
 ---
 
@@ -49,6 +49,14 @@
   - `ScreenshotRepository`：自動掃描 `MediaStore` 截圖、執行離線 OCR、選配呼叫 Gemini Vision 生成分類與摘要，並提供跨截圖「AI 問答」。
   - `ScreenshotsScreen`：整合至主程式第 2 分頁「截圖記憶」，支援媒體權限引導、即時搜尋、批次掃描進度、詳細檢視與一鍵複製 OCR 文字。
 - **APK 驗證**：`.\gradlew.bat assembleDebug --no-daemon` 建置成功（`BUILD SUCCESSFUL`），產出 `%TEMP%\pixelai-bridge-build\app\outputs\apk\debug\app-debug.apk`（63,404,427 bytes，含 ML Kit 離線中文/英文 OCR 模型）。
+
+### 2026-11-22 — v0.3.0 Pixel 原生體驗 UI 改版與固定簽名
+- **固定簽名**：生成專屬簽名金鑰 `keystore/pixelai-bridge.jks`（RSA 2048，效期 10,000 天，已排除於 `.gitignore`），並於 `app/build.gradle.kts` 綁定為 `pixelFixed` 簽名設定，確保後續版本可無縫覆蓋與應用內自動更新。
+- **Pixel Screenshots**：改為 2 欄大圖瀑布流網格、頂部 Collections 分類膠囊與搜尋列內建「問截圖」模式，授權後自動首次掃描。
+- **Now Playing**：新增 `NowPlayingTileService` 快速設定磁貼、辨識結果通知推播、歷史紀錄愛心收藏與篩選。
+- **Magic Cue**：新增 `MagicCueActionExtractor` 一鍵動作晶片（驗證碼複製、連結開啟、地址導航、時間加入行事曆）。
+- **Pixel Studio**：新增風格預設晶片（日系底片／賽博霓虹／去除路人／立體貼圖風／極簡構圖）與莫奈桌布一鍵「設為桌布」。
+- **Call Notes**：新增系統通話錄音資料夾自動掃描與「重點摘要＋可折疊逐字稿」雙段式排版。
 
 ### 2026-11-22 — v0.3.0 改版對照規格定案（對照官方示範影片）
 - 完成 5 大目標 Pixel 功能之 YouTube 官方示範影片對照（含精準秒數連結）：

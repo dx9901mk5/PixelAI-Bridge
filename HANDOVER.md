@@ -2,7 +2,7 @@
 
 > **最後更新**：2026-11-22  
 > **GitHub 儲存庫**：https://github.com/dx9901mk5/PixelAI-Bridge (`main` 分支)  
-> **目前版本**：`0.2.3` (`versionCode = 5`，新增定時背景檢查更新與發現新版自動下載安裝)
+> **目前版本**：`0.3.0` (`versionCode = 6`，五大模組 UI 改版 + 固定簽名 `keystore/pixelai-bridge.jks`)
 
 ---
 

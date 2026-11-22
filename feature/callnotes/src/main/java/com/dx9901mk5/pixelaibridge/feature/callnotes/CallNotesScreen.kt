@@ -3,11 +3,13 @@ package com.dx9901mk5.pixelaibridge.feature.callnotes
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -97,10 +99,13 @@ fun CallNotesScreen(
     var isSummarizing by remember { mutableStateOf(false) }
     var transcriptInput by remember { mutableStateOf("") }
     var latestSummary by remember { mutableStateOf<String?>(null) }
+    var showTranscript by remember { mutableStateOf(false) }
+    var systemCallRecordings by remember { mutableStateOf<List<Pair<String, Uri>>>(emptyList()) }
     var notes by remember { mutableStateOf<List<CallNoteRecord>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         notes = store.getRecent()
+        systemCallRecordings = queryRecentCallRecordings(context)
     }
 
     DisposableEffect(Unit) {
@@ -360,6 +365,19 @@ fun CallNotesScreen(
 
         latestSummary?.let { summary ->
             item {
+                val transcriptMarker = "【精簡逐字稿】"
+                val hasTranscriptSection = summary.contains(transcriptMarker)
+                val mainPart = if (hasTranscriptSection) {
+                    summary.substringBefore(transcriptMarker).trim()
+                } else {
+                    summary
+                }
+                val transcriptPart = if (hasTranscriptSection) {
+                    summary.substringAfter(transcriptMarker).trim()
+                } else {
+                    ""
+                }
+
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -367,12 +385,22 @@ fun CallNotesScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "最新 AI 摘要結果",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "Call Notes 重點摘要",
+                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = summary, style = MaterialTheme.typography.bodySmall)
+                        Text(text = mainPart, style = MaterialTheme.typography.bodySmall)
+                        if (transcriptPart.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(onClick = { showTranscript = !showTranscript }) {
+                                Text(if (showTranscript) "收合逐字稿" else "展開完整逐字稿")
+                            }
+                            if (showTranscript) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(text = transcriptPart, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedButton(
                             onClick = {
@@ -383,8 +411,63 @@ fun CallNotesScreen(
                         ) {
                             Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("複製摘要")
+                            Text("複製全部")
                         }
+                    }
+                }
+            }
+        }
+
+        if (systemCallRecordings.isNotEmpty()) {
+            item {
+                Text(
+                    text = "偵測到系統通話錄音 (${systemCallRecordings.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            items(systemCallRecordings, key = { it.second.toString() }) { (name, uri) ->
+                ElevatedCard(
+                    onClick = {
+                        if (!hasApiKey) {
+                            val prompt = "請聆聽這段通話錄音，整理成繁體中文「重點摘要」與「待辦事項 (Action Items)」。"
+                            if (!GeminiAppHandoff.sendAudioWithPrompt(context, uri, prompt)) {
+                                onShowMessage("找不到可接收音訊的 Gemini App")
+                            }
+                        } else {
+                            scope.launch {
+                                val mime = context.contentResolver.getType(uri) ?: "audio/mp4"
+                                val bytes = withContext(Dispatchers.IO) {
+                                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                }
+                                if (bytes != null) {
+                                    summarizeAudioBytes(name, bytes, mime)
+                                } else {
+                                    onShowMessage("無法讀取錄音檔")
+                                }
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "一鍵摘要",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -424,6 +507,49 @@ fun CallNotesScreen(
         }
     }
 }
+
+private suspend fun queryRecentCallRecordings(context: Context): List<Pair<String, Uri>> =
+    withContext(Dispatchers.IO) {
+        val results = mutableListOf<Pair<String, Uri>>()
+        runCatching {
+            val projection = buildList {
+                add(MediaStore.Audio.Media._ID)
+                add(MediaStore.Audio.Media.DISPLAY_NAME)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    add(MediaStore.Audio.Media.RELATIVE_PATH)
+                }
+            }.toTypedArray()
+
+            val selection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? OR ${MediaStore.Audio.Media.DISPLAY_NAME} LIKE ? OR ${MediaStore.Audio.Media.DISPLAY_NAME} LIKE ?"
+            } else {
+                "${MediaStore.Audio.Media.DISPLAY_NAME} LIKE ? OR ${MediaStore.Audio.Media.DISPLAY_NAME} LIKE ?"
+            }
+            val args = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                arrayOf("%Call%", "%Call%", "%通話%")
+            } else {
+                arrayOf("%Call%", "%通話%")
+            }
+
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                args,
+                "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                while (cursor.moveToNext() && results.size < 5) {
+                    val id = cursor.getLong(idCol)
+                    val name = cursor.getString(nameCol) ?: "call_$id"
+                    val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+                    results.add(name to uri)
+                }
+            }
+        }
+        results
+    }
 
 private fun formatNoteTime(ms: Long): String {
     return SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date(ms))

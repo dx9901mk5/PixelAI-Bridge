@@ -8,6 +8,8 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +60,7 @@ import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
 import com.dx9901mk5.pixelaibridge.core.designsystem.StatusBadgePill
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MagicCueScreen(
     padding: PaddingValues,
@@ -180,6 +184,23 @@ fun MagicCueScreen(
                     maxLines = 4,
                     modifier = Modifier.fillMaxWidth()
                 )
+                val quickActions = remember(manualInput) {
+                    MagicCueActionExtractor.extract(manualInput)
+                }
+                if (quickActions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        quickActions.forEach { action ->
+                            FilterChip(
+                                selected = true,
+                                onClick = {
+                                    MagicCueActionExtractor.execute(context, action, onShowMessage)
+                                },
+                                label = { Text(action.label) }
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(

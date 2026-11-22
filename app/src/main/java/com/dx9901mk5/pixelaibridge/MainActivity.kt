@@ -90,6 +90,7 @@ import com.dx9901mk5.pixelaibridge.core.shizuku.ShizukuStatus
 import com.dx9901mk5.pixelaibridge.feature.callnotes.CallNotesScreen
 import com.dx9901mk5.pixelaibridge.feature.magiccue.MagicCueScreen
 import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingScreen
+import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingTileService
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotsScreen
 import com.dx9901mk5.pixelaibridge.feature.studio.PixelStudioScreen
 import com.dx9901mk5.pixelaibridge.permissions.PermissionCenter
@@ -105,6 +106,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val app = application as PixelAiApplication
         val sharedImageUri = extractSharedImageUri(intent)
+        val initialTab = intent?.getIntExtra(NowPlayingTileService.EXTRA_START_TAB, -1) ?: -1
 
         setContent {
             PixelAiBridgeTheme {
@@ -112,7 +114,8 @@ class MainActivity : ComponentActivity() {
                 PixelAiBridgeApp(
                     vm = vm,
                     container = app.container,
-                    sharedImageUri = sharedImageUri
+                    sharedImageUri = sharedImageUri,
+                    initialTab = initialTab
                 )
             }
         }
@@ -135,9 +138,18 @@ class MainActivity : ComponentActivity() {
 private fun PixelAiBridgeApp(
     vm: MainViewModel,
     container: AppContainer,
-    sharedImageUri: Uri?
+    sharedImageUri: Uri?,
+    initialTab: Int
 ) {
-    var selectedTab by remember { mutableIntStateOf(if (sharedImageUri != null) 3 else 0) }
+    var selectedTab by remember {
+        mutableIntStateOf(
+            when {
+                sharedImageUri != null -> 3
+                initialTab in 0..4 -> initialTab
+                else -> 0
+            }
+        )
+    }
     var selectedToolboxSection by remember { mutableIntStateOf(if (sharedImageUri != null) 1 else 0) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }

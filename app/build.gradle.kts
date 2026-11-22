@@ -12,13 +12,34 @@ android {
         applicationId = "com.dx9901mk5.pixelaibridge"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.2.3"
+        versionCode = 6
+        versionName = "0.3.0"
+    }
+
+    signingConfigs {
+        val fixedKeystore = rootProject.file("keystore/pixelai-bridge.jks")
+        if (fixedKeystore.exists()) {
+            create("pixelFixed") {
+                storeFile = fixedKeystore
+                storePassword = System.getenv("PIXELAI_KEYSTORE_PASS") ?: "PixelAIBridge2026!"
+                keyAlias = "pixelai"
+                keyPassword = System.getenv("PIXELAI_KEY_PASS") ?: "PixelAIBridge2026!"
+            }
+        }
     }
 
     buildTypes {
+        val fixedSigning = signingConfigs.findByName("pixelFixed")
+        debug {
+            if (fixedSigning != null) {
+                signingConfig = fixedSigning
+            }
+        }
         release {
             isMinifyEnabled = false
+            if (fixedSigning != null) {
+                signingConfig = fixedSigning
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

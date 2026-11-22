@@ -21,6 +21,10 @@ class NowPlayingRecognizer(
 ) {
     suspend fun getHistory(): List<NowPlayingTrack> = store.getRecent()
 
+    suspend fun toggleFavorite(track: NowPlayingTrack) {
+        store.setFavorite(track.id, !track.isFavorite)
+    }
+
     @SuppressLint("MissingPermission")
     suspend fun listenAndIdentify(durationSeconds: Int = 6): GeminiResult<NowPlayingTrack> {
         val wavBytes = recordWavSample(durationSeconds)

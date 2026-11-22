@@ -25,14 +25,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Refresh
@@ -42,7 +48,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -111,31 +119,78 @@ fun ScreenshotsScreen(
     }
 
     var searchQuery by remember { mutableStateOf("") }
-    var records by remember { mutableStateOf<List<ScreenshotRecord>>(emptyList()) }
+    var isAskMode by remember { mutableStateOf(false) }
+    var selectedCollection by remember { mutableStateOf("全部") }
+    var allRecords by remember { mutableStateOf<List<ScreenshotRecord>>(emptyList()) }
     var isScanning by remember { mutableStateOf(false) }
     var scanProgressText by remember { mutableStateOf<String?>(null) }
     var selectedRecord by remember { mutableStateOf<ScreenshotRecord?>(null) }
-    var showAskDialog by remember { mutableStateOf(false) }
-    var askInput by remember { mutableStateOf("") }
-    var askAnswer by remember { mutableStateOf<String?>(null) }
+    var inlineAskAnswer by remember { mutableStateOf<String?>(null) }
     var isAsking by remember { mutableStateOf(false) }
+    var didAutoScan by remember { mutableStateOf(false) }
 
-    LaunchedEffect(searchQuery) {
-        records = repository.search(searchQuery)
+    suspend fun runScan(silentIfEmpty: Boolean = false) {
+        if (isScanning) return
+        isScanning = true
+        scanProgressText = "正在搜尋新截圖…"
+        val summary = repository.scanNewScreenshots { done, total ->
+            scanProgressText = "索引中 $done / $total…"
+        }
+        allRecords = repository.search(if (isAskMode) "" else searchQuery)
+        isScanning = false
+        scanProgressText = null
+        if (!silentIfEmpty || summary.scannedNew > 0) {
+            onShowMessage(
+                if (summary.scannedNew > 0) {
+                    "已新索引 ${summary.scannedNew} 張截圖（共 ${summary.totalIndexed} 張）"
+                } else {
+                    "目前共 ${summary.totalIndexed} 張截圖已索引"
+                }
+            )
+        }
     }
 
-    LazyColumn(
+    LaunchedEffect(searchQuery, isAskMode) {
+        allRecords = repository.search(if (isAskMode) "" else searchQuery)
+    }
+
+    LaunchedEffect(hasPermission) {
+        if (hasPermission && !didAutoScan) {
+            didAutoScan = true
+            if (repository.count() == 0) {
+                runScan(silentIfEmpty = true)
+            }
+        }
+    }
+
+    val collections = remember(allRecords) {
+        val counts = allRecords.groupingBy { it.category }.eachCount()
+        listOf("全部" to allRecords.size) + counts.entries.sortedByDescending { it.value }
+            .map { it.key to it.value }
+    }
+
+    val filteredRecords = remember(allRecords, selectedCollection) {
+        if (selectedCollection == "全部") {
+            allRecords
+        } else {
+            allRecords.filter { it.category == selectedCollection }
+        }
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
-            top = padding.calculateTopPadding() + 12.dp,
+            top = padding.calculateTopPadding() + 10.dp,
             bottom = padding.calculateBottomPadding() + 24.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         if (!hasPermission) {
-            item {
+            item(span = { GridItemSpan(2) }) {
                 PixelSectionCard(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
                     Text(
                         text = "授權讀取截圖",
@@ -144,10 +199,10 @@ fun ScreenshotsScreen(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Pixel Screenshots 仿生需要讀取系統相簿中的截圖，並於裝置端執行 ML Kit OCR 建立可搜尋索引。",
+                        text = "Pixel Screenshots 仿生需要讀取系統相簿截圖，並於本機執行 ML Kit OCR 建立可搜尋記憶庫。",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(onClick = { permissionLauncher.launch(requiredPermission) }) {
                         Text("授予媒體讀取權限")
                     }
@@ -155,78 +210,145 @@ fun ScreenshotsScreen(
             }
         }
 
-        item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("搜尋截圖文字、分類或檔名…") },
-                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                singleLine = true,
-                shape = CircleShape,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = {
-                        if (!hasPermission) {
-                            permissionLauncher.launch(requiredPermission)
-                            return@Button
-                        }
-                        if (isScanning) return@Button
-                        scope.launch {
-                            isScanning = true
-                            scanProgressText = "正在搜尋新截圖…"
-                            val summary = repository.scanNewScreenshots { done, total ->
-                                scanProgressText = "正在索引 $done / $total…"
-                            }
-                            records = repository.search(searchQuery)
-                            isScanning = false
-                            scanProgressText = null
-                            onShowMessage(
-                                if (summary.scannedNew > 0) {
-                                    "已新索引 ${summary.scannedNew} 張截圖（共 ${summary.totalIndexed} 張）"
-                                } else {
-                                    "沒有發現新的截圖（共 ${summary.totalIndexed} 張已索引）"
-                                }
-                            )
-                        }
-                    },
-                    enabled = !isScanning,
-                    modifier = Modifier.weight(1f)
+        item(span = { GridItemSpan(2) }) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isScanning) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(scanProgressText ?: "掃描中…")
-                    } else {
-                        Icon(Icons.Rounded.Refresh, contentDescription = null)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("掃描新截圖")
+                    FilterChip(
+                        selected = !isAskMode,
+                        onClick = {
+                            isAskMode = false
+                            inlineAskAnswer = null
+                        },
+                        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        label = { Text("搜尋截圖") }
+                    )
+                    FilterChip(
+                        selected = isAskMode,
+                        onClick = { isAskMode = true },
+                        leadingIcon = { Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        label = { Text("問截圖") }
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    OutlinedButton(
+                        enabled = !isScanning,
+                        onClick = {
+                            if (!hasPermission) {
+                                permissionLauncher.launch(requiredPermission)
+                            } else {
+                                scope.launch { runScan(silentIfEmpty = false) }
+                            }
+                        }
+                    ) {
+                        if (isScanning) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(scanProgressText ?: "掃描中", maxLines = 1)
+                        } else {
+                            Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("掃描")
+                        }
                     }
                 }
 
-                OutlinedButton(
-                    onClick = { showAskDialog = true },
-                    enabled = records.isNotEmpty()
-                ) {
-                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("AI 問答")
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = {
+                        Text(if (isAskMode) "問截圖：例如「Wi-Fi 密碼或取貨碼？」" else "搜尋截圖文字、分類或檔名…")
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (isAskMode) Icons.Rounded.AutoAwesome else Icons.Rounded.Search,
+                            contentDescription = null
+                        )
+                    },
+                    trailingIcon = {
+                        if (isAskMode && searchQuery.isNotBlank()) {
+                            IconButton(
+                                enabled = !isAsking && allRecords.isNotEmpty(),
+                                onClick = {
+                                    if (!hasApiKey) {
+                                        val snippetContext = allRecords.take(12).joinToString("\n") { rec ->
+                                            "- [${rec.displayName} | ${rec.category}] ${rec.ocrText.replace('\n', ' ').take(180)}"
+                                        }
+                                        val prompt = "請根據我手機截圖的 OCR 紀錄回答問題：「$searchQuery」\n\n截圖紀錄：\n$snippetContext"
+                                        if (!GeminiAppHandoff.sendText(context, prompt)) {
+                                            onShowMessage("找不到可接收分享的 Gemini App")
+                                        }
+                                        return@IconButton
+                                    }
+                                    scope.launch {
+                                        isAsking = true
+                                        inlineAskAnswer = when (val res = repository.askAcrossScreenshots(searchQuery)) {
+                                            is GeminiResult.Success -> res.data
+                                            is GeminiResult.Error -> "查詢失敗：${res.message}"
+                                        }
+                                        isAsking = false
+                                    }
+                                }
+                            ) {
+                                if (isAsking) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = "送出")
+                                }
+                            }
+                        } else if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "清除")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        inlineAskAnswer?.let { answer ->
+            item(span = { GridItemSpan(2) }) {
+                PixelSectionCard(containerColor = MaterialTheme.colorScheme.tertiaryContainer) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "截圖記憶庫 AI 回答",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = { inlineAskAnswer = null }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Rounded.Close, contentDescription = "關閉", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = answer, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
 
-        if (records.isEmpty()) {
-            item {
+        if (allRecords.isNotEmpty()) {
+            item(span = { GridItemSpan(2) }) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(collections, key = { it.first }) { (name, count) ->
+                        FilterChip(
+                            selected = selectedCollection == name,
+                            onClick = { selectedCollection = name },
+                            label = { Text("$name ($count)") }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (filteredRecords.isEmpty()) {
+            item(span = { GridItemSpan(2) }) {
                 PixelSectionCard {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -244,7 +366,7 @@ fun ScreenshotsScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "點擊上方「掃描新截圖」即可透過本機 ML Kit OCR 與 Gemini 建立記憶庫。",
+                                text = "點擊右上「掃描」即可透過本機 ML Kit OCR 建立截圖瀑布流記憶庫。",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -253,8 +375,8 @@ fun ScreenshotsScreen(
                 }
             }
         } else {
-            items(records, key = { it.mediaId }) { record ->
-                ScreenshotCard(
+            items(filteredRecords, key = { it.mediaId }) { record ->
+                ScreenshotGridCard(
                     record = record,
                     onClick = { selectedRecord = record }
                 )
@@ -277,7 +399,7 @@ fun ScreenshotsScreen(
                     val updated = repository.reanalyzeWithGemini(rec)
                     if (updated != null) {
                         selectedRecord = updated
-                        records = repository.search(searchQuery)
+                        allRecords = repository.search(if (isAskMode) "" else searchQuery)
                         onShowMessage("已透過 Gemini 更新摘要")
                     } else {
                         onShowMessage("請先設定 Gemini API Key")
@@ -296,83 +418,10 @@ fun ScreenshotsScreen(
             }
         )
     }
-
-    if (showAskDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!isAsking) showAskDialog = false },
-            title = { Text("詢問截圖記憶庫") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = askInput,
-                        onValueChange = { askInput = it },
-                        label = { Text("例如：我的取貨碼或 Wi-Fi 密碼是什麼？") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (isAsking) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Gemini 正在檢索截圖紀錄…", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    askAnswer?.let { answer ->
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh
-                        ) {
-                            Text(
-                                text = answer,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier
-                                    .padding(12.dp)
-                                    .verticalScroll(rememberScrollState())
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    enabled = !isAsking && askInput.isNotBlank(),
-                    onClick = {
-                        if (!hasApiKey) {
-                            val snippetContext = records.take(12).joinToString("\n") { rec ->
-                                "- [${rec.displayName} | ${rec.category}] ${rec.ocrText.replace('\n', ' ').take(180)}"
-                            }
-                            val prompt = "請根據我手機截圖的 OCR 紀錄回答問題：「$askInput」\n\n截圖紀錄：\n$snippetContext"
-                            if (!GeminiAppHandoff.sendText(context, prompt)) {
-                                onShowMessage("找不到可接收分享的 Gemini App")
-                            }
-                            return@Button
-                        }
-                        scope.launch {
-                            isAsking = true
-                            askAnswer = when (val res = repository.askAcrossScreenshots(askInput)) {
-                                is GeminiResult.Success -> res.data
-                                is GeminiResult.Error -> "查詢失敗：${res.message}"
-                            }
-                            isAsking = false
-                        }
-                    }
-                ) {
-                    Text(if (hasApiKey) "送出提問" else "送給手機 Gemini")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !isAsking,
-                    onClick = { showAskDialog = false }
-                ) {
-                    Text("關閉")
-                }
-            }
-        )
-    }
 }
 
 @Composable
-private fun ScreenshotCard(
+private fun ScreenshotGridCard(
     record: ScreenshotRecord,
     onClick: () -> Unit
 ) {
@@ -389,14 +438,12 @@ private fun ScreenshotCard(
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Column {
             Box(
                 modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(14.dp)),
+                    .fillMaxWidth()
+                    .height(145.dp)
+                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (thumbnail != null) {
@@ -418,15 +465,14 @@ private fun ScreenshotCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
-
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
                         shape = CircleShape,
@@ -436,7 +482,7 @@ private fun ScreenshotCard(
                             text = record.category,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                         )
                     }
                     Text(
@@ -448,21 +494,11 @@ private fun ScreenshotCard(
 
                 Text(
                     text = record.aiSummary.ifBlank { record.displayName },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                if (record.ocrText.isNotBlank()) {
-                    Text(
-                        text = record.ocrText.replace('\n', ' '),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
         }
     }
@@ -540,7 +576,7 @@ private suspend fun loadThumbnailBitmap(context: Context, uri: Uri): Bitmap? =
     withContext(Dispatchers.IO) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                context.contentResolver.loadThumbnail(uri, Size(240, 240), null)
+                context.contentResolver.loadThumbnail(uri, Size(360, 360), null)
             } else {
                 val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
                 context.contentResolver.openInputStream(uri)?.use {
@@ -554,6 +590,6 @@ private suspend fun loadThumbnailBitmap(context: Context, uri: Uri): Bitmap? =
 
 private fun formatEpochSeconds(epochSec: Long): String {
     if (epochSec <= 0L) return ""
-    val fmt = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
+    val fmt = SimpleDateFormat("MM/dd", Locale.getDefault())
     return fmt.format(Date(epochSec * 1000L))
 }
