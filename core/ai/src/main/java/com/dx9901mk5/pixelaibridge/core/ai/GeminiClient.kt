@@ -32,7 +32,7 @@ class GeminiClient internal constructor(
     suspend fun testConnection(): GeminiResult<String> {
         return generateText(
             prompt = "Reply with only: PixelAI Bridge OK",
-            maxOutputTokens = 24
+            maxOutputTokens = 256
         )
     }
 
