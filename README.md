@@ -39,9 +39,11 @@ Many Google Pixel exclusive AI features (**Now Playing**, **Pixel Screenshots**,
 
 ---
 
-## 📄 規劃文件 | Documentation
+## 📄 規劃與交接文件 | Documentation
 
+- [專案交接手冊 (Project Handover Guide)](HANDOVER.md)
 - [APK 規劃與架構設計書 (APK Design Plan)](docs/APK_DESIGN_PLAN.md)
+- [本地開發里程碑紀錄 (Development Log)](docs/DEV_LOG.md)
 
 ---
 
