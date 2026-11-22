@@ -75,11 +75,11 @@ PixelAI-Bridge/
 
 ## 5. 分階段開發路線圖 | Phased Implementation Roadmap
 
-### Phase 1: 基礎骨架與核心引擎 (Foundation & Core)
-- [ ] 建立 Gradle Kotlin DSL (`libs.versions.toml`) 與多模組專案結構
-- [ ] 實作 Material 3 Pixel 風格設計系統與首頁 Dashboard
-- [ ] 實作 `core:ai`（Gemini API Key 設定、測試連線、基本文字/圖片請求）
-- [ ] 實作 `core:shizuku`（Shizuku 綁定、狀態監測、權限檢查）
+### Phase 1: 基礎骨架與核心引擎 (Foundation & Core) ✅ 已完成
+- [x] 建立 Gradle Kotlin DSL (`libs.versions.toml`) 與多模組專案結構
+- [x] 實作 Material 3 Pixel 風格設計系統與首頁 Dashboard
+- [x] 實作 `core:ai`（Gemini API Key 設定、測試連線、基本文字請求）
+- [x] 實作 `core:shizuku`（Shizuku 綁定、狀態監測、權限檢查）
 
 ### Phase 2: MVP 首波主打功能 — AI 截圖記憶庫 (Screenshots Bionic)
 - [ ] `MediaStore` + `WorkManager` 背景自動偵測新截圖
