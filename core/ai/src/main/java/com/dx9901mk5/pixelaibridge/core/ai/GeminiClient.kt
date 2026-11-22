@@ -65,14 +65,46 @@ class GeminiClient internal constructor(
         model: String = keyStore.selectedModel.value,
         maxOutputTokens: Int = 512
     ): GeminiResult<String> {
-        val base64 = android.util.Base64.encodeToString(jpegBytes, android.util.Base64.NO_WRAP)
+        return generateWithInlineMedia(
+            prompt = prompt,
+            mediaBytes = jpegBytes,
+            mimeType = "image/jpeg",
+            model = model,
+            maxOutputTokens = maxOutputTokens
+        )
+    }
+
+    suspend fun generateWithAudio(
+        prompt: String,
+        audioBytes: ByteArray,
+        mimeType: String = "audio/wav",
+        model: String = keyStore.selectedModel.value,
+        maxOutputTokens: Int = 1024
+    ): GeminiResult<String> {
+        return generateWithInlineMedia(
+            prompt = prompt,
+            mediaBytes = audioBytes,
+            mimeType = mimeType,
+            model = model,
+            maxOutputTokens = maxOutputTokens
+        )
+    }
+
+    private suspend fun generateWithInlineMedia(
+        prompt: String,
+        mediaBytes: ByteArray,
+        mimeType: String,
+        model: String,
+        maxOutputTokens: Int
+    ): GeminiResult<String> {
+        val base64 = android.util.Base64.encodeToString(mediaBytes, android.util.Base64.NO_WRAP)
         val parts = JSONArray()
             .put(JSONObject().put("text", prompt))
             .put(
                 JSONObject().put(
                     "inline_data",
                     JSONObject()
-                        .put("mime_type", "image/jpeg")
+                        .put("mime_type", mimeType)
                         .put("data", base64)
                 )
             )

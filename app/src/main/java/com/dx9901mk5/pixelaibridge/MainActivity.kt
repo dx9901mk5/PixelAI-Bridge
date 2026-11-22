@@ -1,5 +1,8 @@
 package com.dx9901mk5.pixelaibridge
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -63,8 +66,11 @@ import com.dx9901mk5.pixelaibridge.core.designsystem.PixelFeatureRowCard
 import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
 import com.dx9901mk5.pixelaibridge.core.designsystem.StatusBadgePill
 import com.dx9901mk5.pixelaibridge.core.shizuku.ShizukuStatus
-import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotRepository
+import com.dx9901mk5.pixelaibridge.feature.callnotes.CallNotesScreen
+import com.dx9901mk5.pixelaibridge.feature.magiccue.MagicCueScreen
+import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingScreen
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotsScreen
+import com.dx9901mk5.pixelaibridge.feature.studio.PixelStudioScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -72,14 +78,28 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as PixelAiApplication
+        val sharedImageUri = extractSharedImageUri(intent)
+
         setContent {
             PixelAiBridgeTheme {
                 val vm: MainViewModel = viewModel(factory = MainViewModel.Factory(app.container))
                 PixelAiBridgeApp(
                     vm = vm,
-                    screenshotRepository = app.container.screenshotRepository
+                    container = app.container,
+                    sharedImageUri = sharedImageUri
                 )
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun extractSharedImageUri(intent: Intent?): Uri? {
+        if (intent?.action != Intent.ACTION_SEND) return null
+        if (intent.type?.startsWith("image/") != true) return null
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
         }
     }
 }
@@ -88,9 +108,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun PixelAiBridgeApp(
     vm: MainViewModel,
-    screenshotRepository: ScreenshotRepository
+    container: AppContainer,
+    sharedImageUri: Uri?
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(if (sharedImageUri != null) 3 else 0) }
+    var selectedToolboxSection by remember { mutableIntStateOf(if (sharedImageUri != null) 1 else 0) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -101,6 +123,10 @@ private fun PixelAiBridgeApp(
     val modules by vm.modules.collectAsStateWithLifecycle()
     val testStatus by vm.testStatus.collectAsStateWithLifecycle()
     val isTesting by vm.isTesting.collectAsStateWithLifecycle()
+
+    val showMessage: (String) -> Unit = { msg ->
+        scope.launch { snackbarHostState.showSnackbar(msg) }
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -114,7 +140,7 @@ private fun PixelAiBridgeApp(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Pixel 專屬功能仿生 · Phase 2 MVP",
+                            text = "Pixel 專屬功能仿生 · 全模組整合版",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -135,17 +161,23 @@ private fun PixelAiBridgeApp(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Rounded.ImageSearch, contentDescription = null) },
-                    label = { Text("截圖記憶") }
+                    label = { Text("截圖") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Rounded.Widgets, contentDescription = null) },
-                    label = { Text("仿生模組") }
+                    icon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null) },
+                    label = { Text("識曲") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Rounded.Widgets, contentDescription = null) },
+                    label = { Text("AI 工具") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
                     icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
                     label = { Text("設定") }
                 )
@@ -158,39 +190,55 @@ private fun PixelAiBridgeApp(
                 hasApiKey = hasApiKey,
                 selectedModel = selectedModel,
                 shizukuStatus = shizukuStatus,
-                activeModuleCount = modules.count { it.enabled },
-                onGoToSettings = { selectedTab = 3 },
-                onGoToModules = { selectedTab = 1 },
+                modules = modules,
+                onToggleModule = vm::toggleModule,
+                onNavigateModule = { id ->
+                    when (id) {
+                        "screenshots" -> selectedTab = 1
+                        "now_playing" -> selectedTab = 2
+                        "magic_cue" -> {
+                            selectedToolboxSection = 0
+                            selectedTab = 3
+                        }
+                        "pixel_studio" -> {
+                            selectedToolboxSection = 1
+                            selectedTab = 3
+                        }
+                        "call_notes" -> {
+                            selectedToolboxSection = 2
+                            selectedTab = 3
+                        }
+                    }
+                },
+                onGoToSettings = { selectedTab = 4 },
                 onRequestShizuku = vm::requestShizukuPermission
             )
 
             1 -> ScreenshotsScreen(
                 padding = innerPadding,
-                repository = screenshotRepository,
+                repository = container.screenshotRepository,
                 hasApiKey = hasApiKey,
-                onShowMessage = { msg ->
-                    scope.launch { snackbarHostState.showSnackbar(msg) }
-                }
+                onShowMessage = showMessage
             )
 
-            2 -> ModulesTab(
+            2 -> NowPlayingScreen(
                 padding = innerPadding,
-                modules = modules,
-                onToggle = vm::toggleModule,
-                onModuleClick = { module ->
-                    if (module.id == "screenshots") {
-                        selectedTab = 1
-                    } else {
-                        scope.launch {
-                            snackbarHostState.showSnackbar(
-                                "${module.title} 將於 ${module.phaseLabel} 開放完整功能"
-                            )
-                        }
-                    }
-                }
+                recognizer = container.nowPlayingRecognizer,
+                hasApiKey = hasApiKey,
+                onShowMessage = showMessage
             )
 
-            3 -> SettingsTab(
+            3 -> ToolboxTab(
+                padding = innerPadding,
+                selectedSection = selectedToolboxSection,
+                onSelectSection = { selectedToolboxSection = it },
+                container = container,
+                hasApiKey = hasApiKey,
+                sharedImageUri = sharedImageUri,
+                onShowMessage = showMessage
+            )
+
+            4 -> SettingsTab(
                 padding = innerPadding,
                 initialApiKey = vm.getCurrentApiKey(),
                 selectedModel = selectedModel,
@@ -213,9 +261,10 @@ private fun DashboardTab(
     hasApiKey: Boolean,
     selectedModel: String,
     shizukuStatus: ShizukuStatus,
-    activeModuleCount: Int,
+    modules: List<BionicModuleState>,
+    onToggleModule: (String, Boolean) -> Unit,
+    onNavigateModule: (String) -> Unit,
     onGoToSettings: () -> Unit,
-    onGoToModules: () -> Unit,
     onRequestShizuku: () -> Unit
 ) {
     LazyColumn(
@@ -225,7 +274,7 @@ private fun DashboardTab(
             top = padding.calculateTopPadding() + 12.dp,
             bottom = padding.calculateBottomPadding() + 24.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         item {
@@ -240,53 +289,23 @@ private fun DashboardTab(
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = "非 Pixel 裝置 AI 橋接核心已就緒",
+                        text = "PixelAI Bridge 全功能已就緒",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "目前已啟用 $activeModuleCount / 5 個仿生模組。請先於設定頁綁定 Gemini API Key 與 Shizuku（選配）。",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "已整合截圖記憶庫、Now Playing 識曲、Magic Cue、Pixel Studio 桌布／修圖與 Call Notes 摘要。點擊下方任一卡片即可直接進入。",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = onGoToModules) {
-                        Text("探索仿生模組")
+                if (!hasApiKey) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(onClick = onGoToSettings) {
+                        Text("前往設定 Gemini API Key")
                     }
-                    OutlinedButton(onClick = onGoToSettings) {
-                        Text("設定金鑰")
-                    }
-                }
-            }
-        }
-
-        item {
-            PixelSectionCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Gemini AI 引擎",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "模型：$selectedModel",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    StatusBadgePill(
-                        label = if (hasApiKey) "已設定金鑰" else "未設定金鑰",
-                        isPositive = hasApiKey
-                    )
                 }
             }
         }
@@ -300,8 +319,8 @@ private fun DashboardTab(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Shizuku 特權橋接",
-                            style = MaterialTheme.typography.titleMedium,
+                            text = "Gemini ($selectedModel) · Shizuku",
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
@@ -311,38 +330,19 @@ private fun DashboardTab(
                         )
                     }
                     StatusBadgePill(
-                        label = shizukuLabel(shizukuStatus),
-                        isPositive = shizukuStatus == ShizukuStatus.READY
+                        label = if (hasApiKey) "AI 已就緒" else "未設金鑰",
+                        isPositive = hasApiKey
                     )
                 }
                 if (shizukuStatus == ShizukuStatus.PERMISSION_REQUIRED) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(onClick = onRequestShizuku) {
                         Text("立即授權 Shizuku")
                     }
                 }
             }
         }
-    }
-}
 
-@Composable
-private fun ModulesTab(
-    padding: PaddingValues,
-    modules: List<BionicModuleState>,
-    onToggle: (String, Boolean) -> Unit,
-    onModuleClick: (BionicModuleState) -> Unit
-) {
-    LazyColumn(
-        contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = padding.calculateTopPadding() + 12.dp,
-            bottom = padding.calculateBottomPadding() + 24.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
         items(modules, key = { it.id }) { module ->
             PixelFeatureRowCard(
                 title = module.title,
@@ -350,8 +350,75 @@ private fun ModulesTab(
                 badge = "${module.badge} · ${module.phaseLabel}",
                 icon = iconForModule(module.id),
                 enabled = module.enabled,
-                onToggle = { onToggle(module.id, it) },
-                onClick = { onModuleClick(module) }
+                onToggle = { onToggleModule(module.id, it) },
+                onClick = { onNavigateModule(module.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToolboxTab(
+    padding: PaddingValues,
+    selectedSection: Int,
+    onSelectSection: (Int) -> Unit,
+    container: AppContainer,
+    hasApiKey: Boolean,
+    sharedImageUri: Uri?,
+    onShowMessage: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = padding.calculateTopPadding() + 8.dp
+                ),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedSection == 0,
+                onClick = { onSelectSection(0) },
+                label = { Text("Magic Cue") }
+            )
+            FilterChip(
+                selected = selectedSection == 1,
+                onClick = { onSelectSection(1) },
+                label = { Text("Pixel Studio") }
+            )
+            FilterChip(
+                selected = selectedSection == 2,
+                onClick = { onSelectSection(2) },
+                label = { Text("Call Notes") }
+            )
+        }
+
+        val childPadding = PaddingValues(
+            top = 4.dp,
+            bottom = padding.calculateBottomPadding()
+        )
+        when (selectedSection) {
+            0 -> MagicCueScreen(
+                padding = childPadding,
+                geminiClient = container.geminiClient,
+                hasApiKey = hasApiKey,
+                onShowMessage = onShowMessage
+            )
+            1 -> PixelStudioScreen(
+                padding = childPadding,
+                geminiClient = container.geminiClient,
+                hasApiKey = hasApiKey,
+                initialSharedImageUri = sharedImageUri,
+                onShowMessage = onShowMessage
+            )
+            else -> CallNotesScreen(
+                padding = childPadding,
+                geminiClient = container.geminiClient,
+                store = container.callNotesStore,
+                hasApiKey = hasApiKey,
+                onShowMessage = onShowMessage
             )
         }
     }
@@ -477,15 +544,8 @@ private fun iconForModule(id: String): ImageVector = when (id) {
     else -> Icons.Rounded.AutoAwesome
 }
 
-private fun shizukuLabel(status: ShizukuStatus): String = when (status) {
-    ShizukuStatus.NOT_INSTALLED -> "未安裝"
-    ShizukuStatus.NOT_RUNNING -> "未啟動"
-    ShizukuStatus.PERMISSION_REQUIRED -> "待授權"
-    ShizukuStatus.READY -> "已連線"
-}
-
 private fun shizukuDescription(status: ShizukuStatus): String = when (status) {
-    ShizukuStatus.NOT_INSTALLED -> "裝置未安裝 Shizuku（仍可使用標準功能，安裝後可解鎖背景保活增強）"
+    ShizukuStatus.NOT_INSTALLED -> "裝置未安裝 Shizuku（標準功能可正常使用）"
     ShizukuStatus.NOT_RUNNING -> "已安裝 Shizuku，但服務尚未啟動"
     ShizukuStatus.PERMISSION_REQUIRED -> "Shizuku 運行中，點擊授權即可啟用特權橋接"
     ShizukuStatus.READY -> "Shizuku 已授權並正常運作中"

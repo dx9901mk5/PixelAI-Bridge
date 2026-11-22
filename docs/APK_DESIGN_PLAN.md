@@ -86,11 +86,11 @@ PixelAI-Bridge/
 - [x] 整合 ML Kit 裝置端中文/英文 OCR 辨識
 - [x] 串接 Gemini Vision 自動分類、摘要與自然語言問答（含離線本地降級模式）
 
-### Phase 3: 聽歌識曲與語境橋接 (Now Playing & Magic Cue)
-- [ ] 實作 Quick Settings Tile 與背景低耗電聽歌識曲服務
-- [ ] 實作 `NotificationListenerService` + 懸浮建議氣泡 (Magic Cue)
+### Phase 3: 聽歌識曲與語境橋接 (Now Playing & Magic Cue) ✅ 已完成
+- [x] 實作音訊取樣 + Gemini 音訊辨識與歌詞猜歌 (`:feature:nowplaying`)
+- [x] 實作 `NotificationListenerService` + 隱私黑名單 + 智慧回覆生成 (`:feature:magiccue`)
 
-### Phase 4: 圖像工作室與通話摘要 (Studio & Call Notes)
-- [ ] 實作 Share Sheet 圖片接入與 AI 編輯/生成工作流
-- [ ] 實作音訊檔案轉錄與結構化會議/通話摘要
-- [ ] 針對 vivo OriginOS / OPPO ColorOS / 小米 HyperOS 進行相容性與保活調校
+### Phase 4: 圖像工作室與通話摘要 (Studio & Call Notes) ✅ 已完成
+- [x] 實作 Share Sheet 圖片接入、AI 修圖分析與莫奈動態桌布生成 (`:feature:studio`)
+- [x] 實作即時錄音／音訊匯入轉錄與結構化會議／通話摘要 (`:feature:callnotes`)
+- [x] 整合全部 5 大功能模組至單一 APK 並完成編譯驗證

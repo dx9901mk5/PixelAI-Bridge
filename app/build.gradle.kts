@@ -45,6 +45,10 @@ dependencies {
     implementation(project(":core:ai"))
     implementation(project(":core:shizuku"))
     implementation(project(":feature:screenshots"))
+    implementation(project(":feature:nowplaying"))
+    implementation(project(":feature:magiccue"))
+    implementation(project(":feature:studio"))
+    implementation(project(":feature:callnotes"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

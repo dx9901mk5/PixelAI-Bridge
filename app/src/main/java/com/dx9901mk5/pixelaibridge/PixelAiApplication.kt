@@ -4,6 +4,9 @@ import android.app.Application
 import com.dx9901mk5.pixelaibridge.core.ai.ApiKeyStore
 import com.dx9901mk5.pixelaibridge.core.ai.GeminiClient
 import com.dx9901mk5.pixelaibridge.core.shizuku.ShizukuBridge
+import com.dx9901mk5.pixelaibridge.feature.callnotes.CallNotesStore
+import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingRecognizer
+import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingStore
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotIndexStore
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotOcrEngine
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotRepository
@@ -19,6 +22,11 @@ class AppContainer(application: Application) {
         geminiClient = geminiClient,
         apiKeyStore = apiKeyStore
     )
+    val nowPlayingRecognizer = NowPlayingRecognizer(
+        geminiClient = geminiClient,
+        store = NowPlayingStore(application)
+    )
+    val callNotesStore = CallNotesStore(application)
 }
 
 class PixelAiApplication : Application() {

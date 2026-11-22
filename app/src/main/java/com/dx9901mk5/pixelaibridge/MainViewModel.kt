@@ -48,37 +48,41 @@ class MainViewModel(
                 id = "screenshots",
                 title = "AI 截圖記憶庫",
                 subtitle = "Pixel Screenshots 仿生 · 自動 OCR 與語意檢索",
-                badge = "MVP",
-                phaseLabel = "Phase 2 (已開放)",
+                badge = "Vision",
+                phaseLabel = "已整合",
                 enabled = true
             ),
             BionicModuleState(
                 id = "now_playing",
                 title = "聽歌識曲仿生",
-                subtitle = "Now Playing Bionic · 背景低耗電識曲與紀錄",
+                subtitle = "Now Playing Bionic · 音訊取樣識曲與歌詞猜歌",
                 badge = "Audio",
-                phaseLabel = "Phase 3"
+                phaseLabel = "已整合",
+                enabled = true
             ),
             BionicModuleState(
                 id = "magic_cue",
                 title = "智慧語境建議",
-                subtitle = "Magic Cue · 通知預篩與懸浮智慧回覆膠囊",
+                subtitle = "Magic Cue · 通知監聽與一鍵智慧回覆",
                 badge = "Context",
-                phaseLabel = "Phase 3"
+                phaseLabel = "已整合",
+                enabled = true
             ),
             BionicModuleState(
                 id = "pixel_studio",
                 title = "AI 圖像工作室",
-                subtitle = "Pixel Studio & Magic Editor · 分享選單直達修圖",
-                badge = "Vision",
-                phaseLabel = "Phase 4"
+                subtitle = "Pixel Studio · 莫奈桌布生成與修圖分析",
+                badge = "Studio",
+                phaseLabel = "已整合",
+                enabled = true
             ),
             BionicModuleState(
                 id = "call_notes",
                 title = "通話與會議摘要",
-                subtitle = "Call Notes · 音訊轉錄與結構化重點整理",
+                subtitle = "Call Notes · 錄音轉錄與結構化重點整理",
                 badge = "Summary",
-                phaseLabel = "Phase 4"
+                phaseLabel = "已整合",
+                enabled = true
             )
         )
     )

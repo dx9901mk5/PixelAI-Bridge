@@ -50,10 +50,17 @@
   - `ScreenshotsScreen`：整合至主程式第 2 分頁「截圖記憶」，支援媒體權限引導、即時搜尋、批次掃描進度、詳細檢視與一鍵複製 OCR 文字。
 - **APK 驗證**：`.\gradlew.bat assembleDebug --no-daemon` 建置成功（`BUILD SUCCESSFUL`），產出 `%TEMP%\pixelai-bridge-build\app\outputs\apk\debug\app-debug.apk`（63,404,427 bytes，含 ML Kit 離線中文/英文 OCR 模型）。
 
+### 2026-11-22 — Phase 3 & 4 全模組整合完成
+- **音訊多模態擴充 (`:core:ai`)**：`GeminiClient` 新增 `generateWithAudio()`，支援 WAV／AAC 音訊串流與檔案分析。
+- **新模組 `:feature:nowplaying`**：`AudioRecord` 6 秒環境音訊取樣識曲、歌詞／線索猜歌、歷史紀錄 SQLite 與一鍵跳轉 YouTube Music。
+- **新模組 `:feature:magiccue`**：`MagicCueNotificationListener` 背景通知擷取、內建銀行／密碼 App 隱私黑名單、一鍵生成 3 則智慧回覆與關鍵資訊提取。
+- **新模組 `:feature:studio`**：支援 `ACTION_SEND` 分享圖片接入、Gemini Vision 修圖構圖建議，以及本機莫奈幾何動態桌布渲染與相簿儲存。
+- **新模組 `:feature:callnotes`**：`MediaRecorder` 即時錄音與通話錄音檔匯入，產出重點摘要、待辦事項與精簡逐字稿並支援歷史保存。
+- **全功能整合 APK**：`.\gradlew.bat assembleDebug --no-daemon` 建置成功（`BUILD SUCCESSFUL`），並同步複製至工作區 `PixelAI-Bridge-debug.apk`（`.gitignore` 已排除不推上 GitHub）。
+
 ---
 
 ## 4. 待辦事項 | Next Up
 
-- **Phase 2（MVP）**：實作「AI 截圖記憶庫 (Pixel Screenshots Bionic)」，包含 `MediaStore` 新截圖偵測、ML Kit 裝置端 OCR、Room 本地索引與 Gemini Vision 語意搜尋／問答。
-- **Phase 3**：聽歌識曲仿生（Now Playing）與智慧語境建議（Magic Cue）。
-- **Phase 4**：AI 圖像工作室（Pixel Studio）與通話摘要（Call Notes）。
+- 實機安裝 `PixelAI-Bridge-debug.apk` 測試五大模組權限與 Gemini API 實測效果。
+- 針對 vivo OriginOS / OPPO ColorOS / 小米 HyperOS 進行實機保活與 Shizuku 腳本擴充。
