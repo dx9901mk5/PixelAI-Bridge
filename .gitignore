@@ -1,0 +1,23 @@
+# Google Drive shortcut files
+*.gdoc
+*.gsheet
+*.gslides
+*.gdraw
+
+# Gradle & Android Studio
+.gradle/
+build/
+*/build/
+local.properties
+*.iml
+.idea/
+.DS_Store
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+captures/
+.cxx/
+*.jks
+*.keystore
