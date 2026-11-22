@@ -40,12 +40,7 @@ class GeminiClient internal constructor(
         prompt: String,
         model: String = keyStore.selectedModel.value,
         maxOutputTokens: Int = 512
-    ): GeminiResult<String> = withContext(Dispatchers.IO) {
-        val apiKey = keyStore.getApiKey()
-        if (apiKey.isBlank()) {
-            return@withContext GeminiResult.Error("尚未設定 Gemini API Key")
-        }
-
+    ): GeminiResult<String> {
         val payload = JSONObject().apply {
             put(
                 "contents",
@@ -60,6 +55,41 @@ class GeminiClient internal constructor(
                 "generationConfig",
                 JSONObject().put("maxOutputTokens", maxOutputTokens)
             )
+        }
+        return executeGenerateContent(payload, model)
+    }
+
+    suspend fun generateWithImage(
+        prompt: String,
+        jpegBytes: ByteArray,
+        model: String = keyStore.selectedModel.value,
+        maxOutputTokens: Int = 512
+    ): GeminiResult<String> {
+        val base64 = android.util.Base64.encodeToString(jpegBytes, android.util.Base64.NO_WRAP)
+        val parts = JSONArray()
+            .put(JSONObject().put("text", prompt))
+            .put(
+                JSONObject().put(
+                    "inline_data",
+                    JSONObject()
+                        .put("mime_type", "image/jpeg")
+                        .put("data", base64)
+                )
+            )
+        val payload = JSONObject().apply {
+            put("contents", JSONArray().put(JSONObject().put("parts", parts)))
+            put("generationConfig", JSONObject().put("maxOutputTokens", maxOutputTokens))
+        }
+        return executeGenerateContent(payload, model)
+    }
+
+    private suspend fun executeGenerateContent(
+        payload: JSONObject,
+        model: String
+    ): GeminiResult<String> = withContext(Dispatchers.IO) {
+        val apiKey = keyStore.getApiKey()
+        if (apiKey.isBlank()) {
+            return@withContext GeminiResult.Error("尚未設定 Gemini API Key")
         }
 
         val request = Request.Builder()

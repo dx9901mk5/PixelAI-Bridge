@@ -63,6 +63,8 @@ import com.dx9901mk5.pixelaibridge.core.designsystem.PixelFeatureRowCard
 import com.dx9901mk5.pixelaibridge.core.designsystem.PixelSectionCard
 import com.dx9901mk5.pixelaibridge.core.designsystem.StatusBadgePill
 import com.dx9901mk5.pixelaibridge.core.shizuku.ShizukuStatus
+import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotRepository
+import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotsScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -73,7 +75,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             PixelAiBridgeTheme {
                 val vm: MainViewModel = viewModel(factory = MainViewModel.Factory(app.container))
-                PixelAiBridgeApp(vm)
+                PixelAiBridgeApp(
+                    vm = vm,
+                    screenshotRepository = app.container.screenshotRepository
+                )
             }
         }
     }
@@ -81,7 +86,10 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PixelAiBridgeApp(vm: MainViewModel) {
+private fun PixelAiBridgeApp(
+    vm: MainViewModel,
+    screenshotRepository: ScreenshotRepository
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -106,7 +114,7 @@ private fun PixelAiBridgeApp(vm: MainViewModel) {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Pixel 專屬功能仿生 · Phase 1",
+                            text = "Pixel 專屬功能仿生 · Phase 2 MVP",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -126,14 +134,20 @@ private fun PixelAiBridgeApp(vm: MainViewModel) {
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Rounded.Widgets, contentDescription = null) },
-                    label = { Text("仿生模組") }
+                    icon = { Icon(Icons.Rounded.ImageSearch, contentDescription = null) },
+                    label = { Text("截圖記憶") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Rounded.Widgets, contentDescription = null) },
+                    label = { Text("仿生模組") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
-                    label = { Text("設定與橋接") }
+                    label = { Text("設定") }
                 )
             }
         }
@@ -145,25 +159,38 @@ private fun PixelAiBridgeApp(vm: MainViewModel) {
                 selectedModel = selectedModel,
                 shizukuStatus = shizukuStatus,
                 activeModuleCount = modules.count { it.enabled },
-                onGoToSettings = { selectedTab = 2 },
+                onGoToSettings = { selectedTab = 3 },
                 onGoToModules = { selectedTab = 1 },
                 onRequestShizuku = vm::requestShizukuPermission
             )
 
-            1 -> ModulesTab(
+            1 -> ScreenshotsScreen(
+                padding = innerPadding,
+                repository = screenshotRepository,
+                hasApiKey = hasApiKey,
+                onShowMessage = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+
+            2 -> ModulesTab(
                 padding = innerPadding,
                 modules = modules,
                 onToggle = vm::toggleModule,
                 onModuleClick = { module ->
-                    scope.launch {
-                        snackbarHostState.showSnackbar(
-                            "${module.title} 將於 ${module.phaseLabel} 開放完整功能"
-                        )
+                    if (module.id == "screenshots") {
+                        selectedTab = 1
+                    } else {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                "${module.title} 將於 ${module.phaseLabel} 開放完整功能"
+                            )
+                        }
                     }
                 }
             )
 
-            2 -> SettingsTab(
+            3 -> SettingsTab(
                 padding = innerPadding,
                 initialApiKey = vm.getCurrentApiKey(),
                 selectedModel = selectedModel,

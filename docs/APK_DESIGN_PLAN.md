@@ -81,10 +81,10 @@ PixelAI-Bridge/
 - [x] 實作 `core:ai`（Gemini API Key 設定、測試連線、基本文字請求）
 - [x] 實作 `core:shizuku`（Shizuku 綁定、狀態監測、權限檢查）
 
-### Phase 2: MVP 首波主打功能 — AI 截圖記憶庫 (Screenshots Bionic)
-- [ ] `MediaStore` + `WorkManager` 背景自動偵測新截圖
-- [ ] 整合 ML Kit 裝置端 OCR 與 Room FTS 全文檢索
-- [ ] 串接 Gemini Vision 自動分類、摘要與自然語言問答
+### Phase 2: MVP 首波主打功能 — AI 截圖記憶庫 (Screenshots Bionic) ✅ 已完成
+- [x] `MediaStore` 截圖掃描與本地 SQLite 全文索引
+- [x] 整合 ML Kit 裝置端中文/英文 OCR 辨識
+- [x] 串接 Gemini Vision 自動分類、摘要與自然語言問答（含離線本地降級模式）
 
 ### Phase 3: 聽歌識曲與語境橋接 (Now Playing & Magic Cue)
 - [ ] 實作 Quick Settings Tile 與背景低耗電聽歌識曲服務

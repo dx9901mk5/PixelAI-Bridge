@@ -49,7 +49,8 @@ class MainViewModel(
                 title = "AI 截圖記憶庫",
                 subtitle = "Pixel Screenshots 仿生 · 自動 OCR 與語意檢索",
                 badge = "MVP",
-                phaseLabel = "Phase 2"
+                phaseLabel = "Phase 2 (已開放)",
+                enabled = true
             ),
             BionicModuleState(
                 id = "now_playing",
