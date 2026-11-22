@@ -50,6 +50,15 @@
   - `ScreenshotsScreen`：整合至主程式第 2 分頁「截圖記憶」，支援媒體權限引導、即時搜尋、批次掃描進度、詳細檢視與一鍵複製 OCR 文字。
 - **APK 驗證**：`.\gradlew.bat assembleDebug --no-daemon` 建置成功（`BUILD SUCCESSFUL`），產出 `%TEMP%\pixelai-bridge-build\app\outputs\apk\debug\app-debug.apk`（63,404,427 bytes，含 ML Kit 離線中文/英文 OCR 模型）。
 
+### 2026-11-22 — v0.3.0 改版對照規格定案（對照官方示範影片）
+- 完成 5 大目標 Pixel 功能之 YouTube 官方示範影片對照（含精準秒數連結）：
+  - **Pixel Screenshots**：`https://www.youtube.com/watch?v=Zm0bdWk4ROU&t=82s` / `https://www.youtube.com/shorts/CApMnlRuZu8`
+  - **Now Playing**：`https://www.youtube.com/watch?v=xVhBSsc5HtE&t=0s`
+  - **Magic Cue**：`https://www.youtube.com/watch?v=v0nxfQ2_n0c&t=0s`
+  - **Pixel Studio & Magic Editor**：`https://www.youtube.com/watch?v=Zm0bdWk4ROU&t=183s` / `https://www.youtube.com/watch?v=Dk3zK5EtCHE&t=40s`
+  - **Call Notes**：`https://www.youtube.com/watch?v=Zm0bdWk4ROU&t=0s`
+- 已於 `HANDOVER.md` 整理 `v0.3.0` 具體改版項目，作為下一階段接手實作依據。
+
 ### 2026-11-22 — v0.2.3 自動檢查與一鍵自動下載安裝
 - 新增 `AutoUpdateWorker`（WorkManager 每 12 小時定時檢查 GitHub Releases，發現新版時背景自動下載 APK 並推播點擊即安裝通知）。
 - 啟動 App 及點擊「檢查並自動更新」時，若偵測到新版本且已具備安裝未知應用程式權限，無需二次點擊即自動下載並喚起系統安裝程式。

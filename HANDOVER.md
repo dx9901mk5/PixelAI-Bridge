@@ -67,3 +67,17 @@
 3. **相關文件**：
    - [專案架構與設計規劃書](docs/APK_DESIGN_PLAN.md)
    - [開發里程碑紀錄](docs/DEV_LOG.md)
+
+---
+
+## 5. v0.3.0 示範影片對照與改版規格 | Benchmark & v0.3.0 Redesign Spec
+
+以下為對照 Google Pixel 官方示範影片後整理出的下一階段（`v0.3.0`）優先改版方向：
+
+| 模組 | 參考示範影片（含時間軸） | v0.3.0 改版實作重點 |
+| :--- | :--- | :--- |
+| **Pixel Screenshots** | [現場示範 01:22](https://www.youtube.com/watch?v=Zm0bdWk4ROU&t=82s) | 1. 改為 **2 欄瀑布流大圖網格** + 頂部 Collections 分類膠囊。<br>2. 搜尋列直接整合「問截圖」模式。<br>3. 支援背景自動偵測新截圖。 |
+| **Now Playing** | [設定與實測 00:00](https://www.youtube.com/watch?v=xVhBSsc5HtE&t=0s) | 1. 新增 **Quick Settings TileService** 一鍵識曲。<br>2. 辨識結果推播常駐音樂通知膠囊。<br>3. 歷史清單加入「愛心收藏」與每日分組。 |
+| **Magic Cue** | [MadeByGoogle '25 00:00](https://www.youtube.com/watch?v=v0nxfQ2_n0c&t=0s) | 1. 實作 `SYSTEM_ALERT_WINDOW` 邊緣懸浮快捷膠囊。<br>2. 加入一鍵動作晶片（地址→Google Maps、時間→行事曆、驗證碼→複製）。 |
+| **Pixel Studio & Magic Editor** | [Pixel Studio 03:03](https://www.youtube.com/watch?v=Zm0bdWk4ROU&t=183s)<br>[Magic Editor 00:40](https://www.youtube.com/watch?v=Dk3zK5EtCHE&t=40s) | 1. 串接 `gemini-nano-banana-2.1` / `gemini-3.1-flash-image` 直接生成圖片與貼圖（有 Key 時）。<br>2. 無 Key 時提供預設風格模板一鍵送手機 Gemini App。 |
+| **Call Notes** | [Call Notes 00:00](https://www.youtube.com/watch?v=Zm0bdWk4ROU&t=0s) | 1. 自動掃描 vivo/OPPO/小米系統通話錄音資料夾並推播一鍵摘要通知。<br>2. 摘要頁改為「重點條列 + 可折疊逐字稿」排版。 |
