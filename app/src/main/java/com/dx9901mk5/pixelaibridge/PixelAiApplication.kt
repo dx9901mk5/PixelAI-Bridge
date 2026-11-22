@@ -10,6 +10,8 @@ import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingStore
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotIndexStore
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotOcrEngine
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotRepository
+import com.dx9901mk5.pixelaibridge.updater.AutoUpdateWorker
+import com.dx9901mk5.pixelaibridge.updater.GitHubUpdater
 
 class AppContainer(application: Application) {
     val apiKeyStore = ApiKeyStore(application)
@@ -36,5 +38,8 @@ class PixelAiApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        if (GitHubUpdater().isAutoUpdateEnabled(this)) {
+            AutoUpdateWorker.schedule(this)
+        }
     }
 }

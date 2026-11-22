@@ -57,9 +57,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -91,6 +93,7 @@ import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingScreen
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotsScreen
 import com.dx9901mk5.pixelaibridge.feature.studio.PixelStudioScreen
 import com.dx9901mk5.pixelaibridge.permissions.PermissionCenter
+import com.dx9901mk5.pixelaibridge.updater.AutoUpdateWorker
 import com.dx9901mk5.pixelaibridge.updater.GitHubUpdater
 import com.dx9901mk5.pixelaibridge.updater.ReleaseInfo
 import com.dx9901mk5.pixelaibridge.updater.UpdateCheckResult
@@ -149,6 +152,18 @@ private fun PixelAiBridgeApp(
 
     val showMessage: (String) -> Unit = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg) }
+    }
+
+    val appContext = LocalContext.current
+    LaunchedEffect(Unit) {
+        val updater = GitHubUpdater()
+        if (updater.isAutoUpdateEnabled(appContext) && updater.canInstallPackages(appContext)) {
+            val res = updater.checkLatestRelease()
+            if (res is UpdateCheckResult.Success && res.info.hasUpdate && res.info.apkDownloadUrl != null) {
+                showMessage("發現新版本 ${res.info.tagName}，正在背景自動下載並準備安裝…")
+                updater.downloadAndInstall(appContext, res.info.apkDownloadUrl) {}
+            }
+        }
     }
 
     Scaffold(
@@ -469,6 +484,7 @@ private fun SettingsTab(
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableFloatStateOf(0f) }
+    var autoUpdateEnabled by remember { mutableStateOf(updater.isAutoUpdateEnabled(context)) }
     var releaseInfo by remember { mutableStateOf<ReleaseInfo?>(null) }
     var updateMessage by remember { mutableStateOf<String?>(null) }
 
@@ -675,68 +691,86 @@ private fun SettingsTab(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        enabled = !isCheckingUpdate && !isDownloadingUpdate,
-                        onClick = {
-                            scope.launch {
-                                isCheckingUpdate = true
-                                updateMessage = "正在檢查 GitHub 最新版本…"
-                                when (val res = updater.checkLatestRelease()) {
-                                    is UpdateCheckResult.Success -> {
-                                        releaseInfo = res.info
-                                        updateMessage = if (res.info.hasUpdate) {
-                                            "發現新版本：${res.info.tagName}（${res.info.title}）"
-                                        } else {
-                                            "目前已是最新版本 (${res.info.tagName})"
-                                        }
-                                    }
-                                    is UpdateCheckResult.Error -> {
-                                        updateMessage = res.message
-                                    }
-                                }
-                                isCheckingUpdate = false
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "背景定時檢查更新（每 12 小時）",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "發現新版時自動下載並通知安裝",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoUpdateEnabled,
+                        onCheckedChange = { enabled ->
+                            autoUpdateEnabled = enabled
+                            updater.setAutoUpdateEnabled(context, enabled)
+                            if (enabled) {
+                                AutoUpdateWorker.schedule(context)
+                            } else {
+                                AutoUpdateWorker.cancel(context)
                             }
                         }
-                    ) {
-                        if (isCheckingUpdate) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("檢查中…")
-                        } else {
-                            Text("檢查更新")
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    enabled = !isCheckingUpdate && !isDownloadingUpdate,
+                    onClick = {
+                        scope.launch {
+                            isCheckingUpdate = true
+                            updateMessage = "正在檢查 GitHub 最新版本…"
+                            when (val res = updater.checkLatestRelease()) {
+                                is UpdateCheckResult.Success -> {
+                                    releaseInfo = res.info
+                                    val apkUrl = res.info.apkDownloadUrl
+                                    if (res.info.hasUpdate && apkUrl != null) {
+                                        if (!updater.canInstallPackages(context)) {
+                                            updateMessage = "發現新版本 ${res.info.tagName}，請先允許安裝未知應用程式"
+                                            PermissionCenter.openPermissionSettings(context, "install_unknown")
+                                        } else {
+                                            isCheckingUpdate = false
+                                            isDownloadingUpdate = true
+                                            downloadProgress = 0f
+                                            updateMessage = "發現新版本 ${res.info.tagName}，正在自動下載並準備安裝…"
+                                            val dl = updater.downloadAndInstall(context, apkUrl) { p ->
+                                                downloadProgress = p
+                                            }
+                                            isDownloadingUpdate = false
+                                            dl.onSuccess {
+                                                updateMessage = "下載完成，已啟動系統安裝程式"
+                                            }.onFailure { err ->
+                                                updateMessage = "下載失敗：${err.localizedMessage}"
+                                            }
+                                            return@launch
+                                        }
+                                    } else {
+                                        updateMessage = "目前已是最新版本 (${res.info.tagName})"
+                                    }
+                                }
+                                is UpdateCheckResult.Error -> {
+                                    updateMessage = res.message
+                                }
+                            }
+                            isCheckingUpdate = false
                         }
                     }
-
-                    val apkUrl = releaseInfo?.apkDownloadUrl
-                    if (apkUrl != null && releaseInfo?.hasUpdate == true) {
-                        OutlinedButton(
-                            enabled = !isDownloadingUpdate,
-                            onClick = {
-                                if (!updater.canInstallPackages(context)) {
-                                    onShowMessage("請先允許安裝未知來源應用程式")
-                                    PermissionCenter.openPermissionSettings(context, "install_unknown")
-                                    return@OutlinedButton
-                                }
-                                scope.launch {
-                                    isDownloadingUpdate = true
-                                    downloadProgress = 0f
-                                    updateMessage = "正在下載 APK 更新檔…"
-                                    val result = updater.downloadAndInstall(context, apkUrl) { progress ->
-                                        downloadProgress = progress
-                                    }
-                                    isDownloadingUpdate = false
-                                    result.onSuccess {
-                                        updateMessage = "下載完成，已啟動系統安裝程式"
-                                    }.onFailure { err ->
-                                        updateMessage = "下載失敗：${err.localizedMessage}"
-                                    }
-                                }
-                            }
-                        ) {
-                            Text(if (isDownloadingUpdate) "下載中…" else "下載並安裝")
-                        }
+                ) {
+                    if (isCheckingUpdate || isDownloadingUpdate) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isDownloadingUpdate) "自動下載中…" else "檢查中…")
+                    } else {
+                        Text("檢查並自動更新")
                     }
                 }
 

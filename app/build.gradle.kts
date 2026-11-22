@@ -12,8 +12,8 @@ android {
         applicationId = "com.dx9901mk5.pixelaibridge"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.2.2"
+        versionCode = 5
+        versionName = "0.2.3"
     }
 
     buildTypes {
@@ -63,6 +63,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
 
     debugImplementation(libs.androidx.ui.tooling)

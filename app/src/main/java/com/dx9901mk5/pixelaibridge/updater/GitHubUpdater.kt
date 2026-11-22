@@ -95,7 +95,20 @@ class GitHubUpdater(
         context: Context,
         downloadUrl: String,
         onProgress: (Float) -> Unit
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<Unit> {
+        val downloadResult = downloadApkOnly(context, downloadUrl, onProgress)
+        return downloadResult.mapCatching { apkFile ->
+            withContext(Dispatchers.Main) {
+                launchApkInstaller(context, apkFile)
+            }
+        }
+    }
+
+    suspend fun downloadApkOnly(
+        context: Context,
+        downloadUrl: String,
+        onProgress: (Float) -> Unit = {}
+    ): Result<File> = withContext(Dispatchers.IO) {
         try {
             val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
             val apkFile = File(updatesDir, "PixelAI-Bridge-update.apk")
@@ -129,11 +142,7 @@ class GitHubUpdater(
                     }
                 }
             }
-
-            withContext(Dispatchers.Main) {
-                launchApkInstaller(context, apkFile)
-            }
-            Result.success(Unit)
+            Result.success(apkFile)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -147,17 +156,30 @@ class GitHubUpdater(
         }
     }
 
-    private fun launchApkInstaller(context: Context, apkFile: File) {
+    fun buildInstallIntent(context: Context, apkFile: File): Intent {
         val uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
             apkFile
         )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
+        return Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(intent)
+    }
+
+    fun launchApkInstaller(context: Context, apkFile: File) {
+        context.startActivity(buildInstallIntent(context, apkFile))
+    }
+
+    fun isAutoUpdateEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_AUTO_UPDATE, true)
+    }
+
+    fun setAutoUpdateEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_AUTO_UPDATE, enabled).apply()
     }
 
     internal fun isNewerVersion(remoteTag: String, currentVersion: String): Boolean {
@@ -182,6 +204,8 @@ class GitHubUpdater(
 
     companion object {
         const val REPO_URL = "https://github.com/dx9901mk5/PixelAI-Bridge"
+        private const val PREFS_NAME = "pixelai_updater_prefs"
+        private const val KEY_AUTO_UPDATE = "auto_update_enabled"
         private const val LATEST_RELEASE_API =
             "https://api.github.com/repos/dx9901mk5/PixelAI-Bridge/releases/latest"
     }

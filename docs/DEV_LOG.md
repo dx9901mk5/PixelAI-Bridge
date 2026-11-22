@@ -10,7 +10,7 @@
 - **Application ID**：`com.dx9901mk5.pixelaibridge`
 - **本地工作區**：`D:\Google雲端硬碟\Antigravity\Pixel專屬功能仿生`
 - **GitHub 儲存庫**：https://github.com/dx9901mk5/PixelAI-Bridge (`main` 分支)
-- **目前版本**：`0.2.2` (`versionCode = 4`)
+- **目前版本**：`0.2.3` (`versionCode = 5`)
 
 ---
 
@@ -49,6 +49,10 @@
   - `ScreenshotRepository`：自動掃描 `MediaStore` 截圖、執行離線 OCR、選配呼叫 Gemini Vision 生成分類與摘要，並提供跨截圖「AI 問答」。
   - `ScreenshotsScreen`：整合至主程式第 2 分頁「截圖記憶」，支援媒體權限引導、即時搜尋、批次掃描進度、詳細檢視與一鍵複製 OCR 文字。
 - **APK 驗證**：`.\gradlew.bat assembleDebug --no-daemon` 建置成功（`BUILD SUCCESSFUL`），產出 `%TEMP%\pixelai-bridge-build\app\outputs\apk\debug\app-debug.apk`（63,404,427 bytes，含 ML Kit 離線中文/英文 OCR 模型）。
+
+### 2026-11-22 — v0.2.3 自動檢查與一鍵自動下載安裝
+- 新增 `AutoUpdateWorker`（WorkManager 每 12 小時定時檢查 GitHub Releases，發現新版時背景自動下載 APK 並推播點擊即安裝通知）。
+- 啟動 App 及點擊「檢查並自動更新」時，若偵測到新版本且已具備安裝未知應用程式權限，無需二次點擊即自動下載並喚起系統安裝程式。
 
 ### 2026-11-22 — v0.2.2 全模組免 API Key 橋接模式
 - 新增 `GeminiAppHandoff`（`:core:ai`）：支援透過 Android `ACTION_SEND` 直接將文字、圖片、錄音檔導向手機本機已登入的 Gemini App（`com.google.android.apps.bard`），以及一鍵喚起 Google 聽歌／哼唱識曲。
