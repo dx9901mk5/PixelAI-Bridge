@@ -10,7 +10,7 @@
 - **Application ID**：`com.dx9901mk5.pixelaibridge`
 - **本地工作區**：`D:\Google雲端硬碟\Antigravity\Pixel專屬功能仿生`
 - **GitHub 儲存庫**：https://github.com/dx9901mk5/PixelAI-Bridge (`main` 分支)
-- **目前版本**：`0.1.0-alpha` (`versionCode = 1`)
+- **目前版本**：`0.2.0` (`versionCode = 2`)
 
 ---
 

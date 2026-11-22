@@ -5,8 +5,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,9 +18,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -26,14 +32,20 @@ import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.TipsAndUpdates
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,10 +54,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,9 +69,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dx9901mk5.pixelaibridge.core.ai.ApiKeyStore
@@ -71,6 +88,10 @@ import com.dx9901mk5.pixelaibridge.feature.magiccue.MagicCueScreen
 import com.dx9901mk5.pixelaibridge.feature.nowplaying.NowPlayingScreen
 import com.dx9901mk5.pixelaibridge.feature.screenshots.ScreenshotsScreen
 import com.dx9901mk5.pixelaibridge.feature.studio.PixelStudioScreen
+import com.dx9901mk5.pixelaibridge.permissions.PermissionCenter
+import com.dx9901mk5.pixelaibridge.updater.GitHubUpdater
+import com.dx9901mk5.pixelaibridge.updater.ReleaseInfo
+import com.dx9901mk5.pixelaibridge.updater.UpdateCheckResult
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -249,7 +270,8 @@ private fun PixelAiBridgeApp(
                 onSelectModel = vm::selectModel,
                 onTestConnection = vm::testGeminiConnection,
                 onRefreshShizuku = vm::refreshShizuku,
-                onRequestShizuku = vm::requestShizukuPermission
+                onRequestShizuku = vm::requestShizukuPermission,
+                onShowMessage = showMessage
             )
         }
     }
@@ -436,9 +458,36 @@ private fun SettingsTab(
     onSelectModel: (String) -> Unit,
     onTestConnection: () -> Unit,
     onRefreshShizuku: () -> Unit,
-    onRequestShizuku: () -> Unit
+    onRequestShizuku: () -> Unit,
+    onShowMessage: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val updater = remember { GitHubUpdater() }
+
     var keyInput by remember(initialApiKey) { mutableStateOf(initialApiKey) }
+    var permissions by remember { mutableStateOf(PermissionCenter.collectStatuses(context)) }
+    var pendingPermId by remember { mutableStateOf<String?>(null) }
+
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableFloatStateOf(0f) }
+    var releaseInfo by remember { mutableStateOf<ReleaseInfo?>(null) }
+    var updateMessage by remember { mutableStateOf<String?>(null) }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        permissions = PermissionCenter.collectStatuses(context)
+    }
+
+    val runtimePermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        permissions = PermissionCenter.collectStatuses(context)
+        if (!granted) {
+            pendingPermId?.let { PermissionCenter.openPermissionSettings(context, it) }
+        }
+        pendingPermId = null
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -529,6 +578,226 @@ private fun SettingsTab(
                             Text("請求授權")
                         }
                     }
+                }
+            }
+        }
+
+        item {
+            PixelSectionCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Rounded.Security, contentDescription = null)
+                        Text(
+                            text = "權限檢查與導向開啟",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "${permissions.count { it.isGranted }}/${permissions.size}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "點擊任一權限項目即可直接請求授權或跳轉至系統設定頁面。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    permissions.forEach { perm ->
+                        Surface(
+                            onClick = {
+                                if (!perm.isGranted && perm.runtimePermission != null) {
+                                    pendingPermId = perm.id
+                                    runtimePermLauncher.launch(perm.runtimePermission)
+                                } else {
+                                    PermissionCenter.openPermissionSettings(context, perm.id)
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = perm.title,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = perm.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                StatusBadgePill(
+                                    label = if (perm.isGranted) "已開啟" else "前往設定",
+                                    isPositive = perm.isGranted
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            PixelSectionCard {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Rounded.SystemUpdate, contentDescription = null)
+                    Text(
+                        text = "版本與自動檢查更新",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "目前版本：v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        enabled = !isCheckingUpdate && !isDownloadingUpdate,
+                        onClick = {
+                            scope.launch {
+                                isCheckingUpdate = true
+                                updateMessage = "正在檢查 GitHub 最新版本…"
+                                when (val res = updater.checkLatestRelease()) {
+                                    is UpdateCheckResult.Success -> {
+                                        releaseInfo = res.info
+                                        updateMessage = if (res.info.hasUpdate) {
+                                            "發現新版本：${res.info.tagName}（${res.info.title}）"
+                                        } else {
+                                            "目前已是最新版本 (${res.info.tagName})"
+                                        }
+                                    }
+                                    is UpdateCheckResult.Error -> {
+                                        updateMessage = res.message
+                                    }
+                                }
+                                isCheckingUpdate = false
+                            }
+                        }
+                    ) {
+                        if (isCheckingUpdate) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("檢查中…")
+                        } else {
+                            Text("檢查更新")
+                        }
+                    }
+
+                    val apkUrl = releaseInfo?.apkDownloadUrl
+                    if (apkUrl != null && releaseInfo?.hasUpdate == true) {
+                        OutlinedButton(
+                            enabled = !isDownloadingUpdate,
+                            onClick = {
+                                if (!updater.canInstallPackages(context)) {
+                                    onShowMessage("請先允許安裝未知來源應用程式")
+                                    PermissionCenter.openPermissionSettings(context, "install_unknown")
+                                    return@OutlinedButton
+                                }
+                                scope.launch {
+                                    isDownloadingUpdate = true
+                                    downloadProgress = 0f
+                                    updateMessage = "正在下載 APK 更新檔…"
+                                    val result = updater.downloadAndInstall(context, apkUrl) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    isDownloadingUpdate = false
+                                    result.onSuccess {
+                                        updateMessage = "下載完成，已啟動系統安裝程式"
+                                    }.onFailure { err ->
+                                        updateMessage = "下載失敗：${err.localizedMessage}"
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(if (isDownloadingUpdate) "下載中…" else "下載並安裝")
+                        }
+                    }
+                }
+
+                if (isDownloadingUpdate) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LinearProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (updateMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = updateMessage.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(
+                onClick = {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(GitHubUpdater.REPO_URL))
+                    )
+                },
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "GitHub 開源專案頁面",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = GitHubUpdater.REPO_URL,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                        contentDescription = "開啟 GitHub"
+                    )
                 }
             }
         }
