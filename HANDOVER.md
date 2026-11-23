@@ -1,8 +1,10 @@
 # PixelAI-Bridge 專案交接手冊 | Project Handover Guide
 
-> **最後更新**：2026-11-22  
+> **最後更新**：2026-11-23  
 > **GitHub 儲存庫**：https://github.com/dx9901mk5/PixelAI-Bridge (`main` 分支)  
-> **目前版本**：`0.3.0` (`versionCode = 6`，五大模組 UI 改版 + 固定簽名 `keystore/pixelai-bridge.jks`)
+> **最新 Release**：https://github.com/dx9901mk5/PixelAI-Bridge/releases/tag/v0.3.0  
+> **目前版本**：`0.3.0` (`versionCode = 6`，五大模組 UI 改版 + 固定簽名 `keystore/pixelai-bridge.jks`)  
+> **固定簽名 SHA-256**：`2bf2e008e535c13b1b87e260389a475fb9ec088c0d929d8b6e07d4d4ad2c5d39`
 
 ---
 
@@ -27,13 +29,13 @@
 
 | 模組 | 職責 | 關鍵類別與檔案 |
 | :--- | :--- | :--- |
-| `:app` | 主程式入口、5 分頁導航、Share Sheet 接收 | `PixelAiApplication.kt`、`MainViewModel.kt`、`MainActivity.kt`、`AndroidManifest.xml` |
+| `:app` | 主程式入口、5 分頁導航、權限中心、自動更新 | `PixelAiApplication.kt`、`MainViewModel.kt`、`MainActivity.kt`、`PermissionCenter.kt`、`GitHubUpdater.kt`、`AutoUpdateWorker.kt`、`AndroidManifest.xml` |
 | `:core:designsystem` | Material 3 Dynamic Color 主題與元件 | `Theme.kt`、`PixelComponents.kt` |
-| `:core:ai` | Gemini REST Client (Text/Image/Audio) 與加密金鑰儲存 | `ApiKeyStore.kt`、`GeminiClient.kt` |
+| `:core:ai` | Gemini REST Client (`gemini-3.8-flash` / `4-argon` / `3.5-flash-lite`) 與免 Key 橋接 | `ApiKeyStore.kt`、`GeminiClient.kt`、`GeminiAppHandoff.kt` |
 | `:core:shizuku` | Shizuku Binder 狀態監測與權限請求 | `ShizukuBridge.kt` |
-| `:feature:screenshots` | AI 截圖記憶庫（MediaStore + ML Kit OCR + Gemini 問答） | `ScreenshotIndexStore.kt`、`ScreenshotOcrEngine.kt`、`ScreenshotRepository.kt`、`ScreenshotsScreen.kt` |
-| `:feature:nowplaying` | 聽歌識曲仿生（6 秒 WAV 取樣 + 歌詞猜歌 + 歷史） | `NowPlayingStore.kt`、`NowPlayingRecognizer.kt`、`NowPlayingScreen.kt` |
-| `:feature:magiccue` | 智慧語境建議（通知監聽 + 隱私黑名單 + 智慧回覆） | `MagicCueBus.kt`、`MagicCueNotificationListener.kt`、`MagicCueScreen.kt` |
+| `:feature:screenshots` | AI 截圖記憶庫（2 欄瀑布流 + Collections + ML Kit OCR + 問截圖） | `ScreenshotIndexStore.kt`、`ScreenshotOcrEngine.kt`、`ScreenshotRepository.kt`、`ScreenshotsScreen.kt` |
+| `:feature:nowplaying` | 聽歌識曲仿生（快速設定磁貼 + 6 秒 WAV 取樣 + 最愛收藏 + 通知） | `NowPlayingStore.kt`、`NowPlayingRecognizer.kt`、`NowPlayingTileService.kt`、`NowPlayingScreen.kt` |
+| `:feature:magiccue` | 智慧語境建議（通知監聽 + 隱私黑名單 + 一鍵動作晶片） | `MagicCueBus.kt`、`MagicCueNotificationListener.kt`、`MagicCueActionExtractor.kt`、`MagicCueScreen.kt` |
 | `:feature:studio` | AI 圖像工作室（莫奈幾何桌布生成 + 修圖分析） | `PixelStudioScreen.kt` |
 | `:feature:callnotes` | 通話與會議摘要（即時錄音 / 匯入音訊 / 文字整理） | `CallNotesStore.kt`、`CallNotesScreen.kt` |
 
